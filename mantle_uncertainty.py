@@ -7,14 +7,21 @@ from scipy import interpolate
 
 nruns = 100
 timestep=1.0e-2  # e.g. if 1.0e-2, open calc and set decimals=2
-tmin, tmax = 0.0, 3.5  # change in calc too if change here
+tmin, tmax = 0.0, 3.9  # change in calc too if change here
 targetP=1.5
 lowerrow=0
 startpoint = 'midarc'
 endpoint = 'phanero'
-constants = ['Ea_list', 'betatransition', 'Qm_list', 'Tp_present',  
-	#'t_latearc', 't_phanero', 'Tp_phanero', 'Tp_latearc', 
-	'Tp_midarc', 't_midarc']
+scenario = 'TectonicTiming'
+#constants = ['Ea_list', 'betatransition', 'Qm_list', 'Tp_present', 't_midarc', 'Tp_midarc', 't_latearc', 'Tp_latearc', 't_phanero', 'Tp_phanero']
+
+vary = {'Only_Start_End_Points': ['Ea_list', 'betatransition', 'Qm_list', 'Tp_present'],
+	'Present_T_Flux' : ['Ea_list', 'betatransition', 't_midarc', 'Tp_midarc', 't_latearc', 'Tp_latearc', 't_phanero', 'Tp_phanero'],
+	'Rheology': ['betatransition', 't_midarc', 'Tp_midarc', 't_latearc', 'Tp_latearc', 't_phanero', 'Tp_phanero'],
+	'TectonicTiming': ['Ea_list', 't_midarc', 'Tp_midarc', 't_latearc', 'Tp_latearc', 't_phanero', 'Tp_phanero'],
+	}
+
+constants = vary[scenario]
 curves = ['Linear', 'Sqrt', 'Fifth', 'HalfBy2.0', 'HalfBy2.5', 'HalfBy3.0', 'HalfBy3.5']
 print('Using only mean values for the following:\n', [i for i in constants])
 cases = calc.case_defs(nruns=nruns, constants=constants)
@@ -46,7 +53,7 @@ for curve in curves:
 		b=0.1
 		if runs[r]['t_'+startpoint]<runs[r]['betatransition']:
 			 b=0.3
-		H_start = mantle_Ht_max[r].loc[calc.round_up(t_start, )]
+		H_start = mantle_Ht_max[r].loc[calc.round_up(t_start)]
 		Tp = runs[r]['Tp_'+startpoint]
 		factors = [#(rho_fT(Tp)/runs[r]['rho_ref'])**(2*b),
 				#((Cp_fT(Tp) * alpha_fT(Tp)) / (runs[r]['Cp_ref'] * runs[r]['alpha_ref']))**(b),
@@ -70,4 +77,5 @@ for curve in curves:
 		cases['Tend'] = Tlist
 		#print(t - runs[r]['t_'+endpoint])
 	print(curve, '\n', calc.CI_cols(cases)['Tend']/calc.CI_cols(cases)['Tp_'+endpoint])
-	cases.to_csv(str(len(constants))+curve+'.csv')
+	cases.to_csv(scenario+curve+'.csv')
+
