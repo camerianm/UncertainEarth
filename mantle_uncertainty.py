@@ -6,13 +6,15 @@ import matplotlib.pyplot as plt
 from scipy import interpolate
 
 nruns = 100
-timestep=1.0e-3  # e.g. if 1.0e-2, open calc and set decimals=2
-tmin, tmax = 0.0, 3.5
+timestep=1.0e-2  # e.g. if 1.0e-2, open calc and set decimals=2
+tmin, tmax = 0.0, 3.5  # change in calc too if change here
 targetP=1.5
 lowerrow=0
 startpoint = 'midarc'
 endpoint = 'phanero'
-constants = ['Ea_list', 'betatransition', 'Qm_list', 'Tp_present', 'Tp_phanero', 'Tp_latearc', 'Tp_midarc', 't_midarc', 't_latearc', 't_phanero']
+constants = ['Ea_list', 'betatransition', 'Qm_list', 'Tp_present',  
+	#'t_latearc', 't_phanero', 'Tp_phanero', 'Tp_latearc', 
+	'Tp_midarc', 't_midarc']
 curves = ['Linear', 'Sqrt', 'Fifth', 'HalfBy2.0', 'HalfBy2.5', 'HalfBy3.0', 'HalfBy3.5']
 print('Using only mean values for the following:\n', [i for i in constants])
 cases = calc.case_defs(nruns=nruns, constants=constants)
@@ -52,7 +54,7 @@ for curve in curves:
 				np.exp(((runs[r]['Ea_list'])/calc.R_idealgas)*((1/Tp)-(1/(runs[r]['Tp_present'] + dT_fTp))))**(-1*b)]
 		Q_start = runs[r]['Qm_list'] * np.prod(factors)
 		dT = -1 * ((t_start - calc.round_down(t_start))*calc.seconds*1.0e12*(Q_start-H_start)/(Cp_fT(Tp)*calc.M_mant+calc.Cpcore))
-		Hts = mantle_Ht_max[r].loc[calc.round_down(t_start):calc.round_up(runs[r]['t_latearc']):-1]
+		Hts = mantle_Ht_max[r].loc[calc.round_down(t_start):calc.round_up(runs[r]['t_'+endpoint]):-1]
 		for t in Hts.index:
 			if t>runs[r]['t_'+endpoint]:
 				Tp = Tp + timestep*dT
@@ -64,7 +66,10 @@ for curve in curves:
 							np.exp(((runs[r]['Ea_list'])/calc.R_idealgas)*((1/Tp)-(1/(runs[r]['Tp_present'] + dT_fTp))))**(-1*b)]
 				Qt = runs[r]['Qm_list'] * np.prod(factors)
 				dT = -1 * (calc.seconds*1.0e12*(Qt-Hts[t])/(Cp_fT(Tp)*calc.M_mant+calc.Cpcore))
+		print(t)
+		exit()
 		Tlist[r]=Tp+dT*(calc.round_up(runs[r]['t_'+endpoint]) - runs[r]['t_'+endpoint])
-	cases['Tend'] = Tlist
+		cases['Tend'] = Tlist
+		#print(t - runs[r]['t_'+endpoint])
 	print(curve, '\n', calc.CI_cols(cases)['Tend']/calc.CI_cols(cases)['Tp_'+endpoint])
-	#print(curve, '\t', time.time()-start, 's')
+	cases.to_csv(str(len(constants))+curve+'.csv')
