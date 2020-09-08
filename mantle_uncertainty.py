@@ -66,8 +66,6 @@ for curve in curves:
 							np.exp(((runs[r]['Ea_list'])/calc.R_idealgas)*((1/Tp)-(1/(runs[r]['Tp_present'] + dT_fTp))))**(-1*b)]
 				Qt = runs[r]['Qm_list'] * np.prod(factors)
 				dT = -1 * (calc.seconds*1.0e12*(Qt-Hts[t])/(Cp_fT(Tp)*calc.M_mant+calc.Cpcore))
-		print(t)
-		exit()
 		Tlist[r]=Tp+dT*(calc.round_up(runs[r]['t_'+endpoint]) - runs[r]['t_'+endpoint])
 		cases['Tend'] = Tlist
 		#print(t - runs[r]['t_'+endpoint])
