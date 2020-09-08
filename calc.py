@@ -9,8 +9,8 @@ from matplotlib import cm
 from matplotlib import rcParams as rcParams
 rcParams['figure.dpi'] = 200
 
-decimals = 3
-tmin, tmax = 2.5, 3.9
+decimals = 2
+tmin, tmax = 0.0, 3.9
 Tpmin, Tpmax = 1600, 2100
 R_idealgas = 8.314
 M_mant = 4.043e24
@@ -48,7 +48,7 @@ def case_defs(nruns: int, constants: list) -> pd.DataFrame:
                          't_latearc' : list(np.random.normal(2.756, 0.028, nruns)),  # Method: Abbott et al 1994
                          't_midarc': list(np.random.normal(3.344, 0.114, nruns)),    # Method: Abbott et al 1994
                          'Ea_list': list(np.random.normal(362.0e3 , 60.0e3, nruns)), # Method: Jain 2018? or Korenaga 08?
-                         'Qm_list' : list(np.random.uniform(36.5, 4.5, nruns)),  # Method: Korenaga 2008, mantle heat flux DOI:10.1029/2007RG000241
+                         'Qm_list' : list(np.random.normal(36.5, 4.5, nruns)),  # Method: Korenaga 2008, mantle heat flux DOI:10.1029/2007RG000241
                          #'Cw_list' : list(np.random.normal(1.05, 0.02, nruns)), # Water content ratio, Archean/Present
                          #'pCw_list' : list(np.random.normal(0.84, 0.26, nruns)), # Water content exponent + uncertainty
                          #'Gs_list' : list(np.random.normal(2, 1, nruns)),  # Grain size ratio Archean/Present - span from se.copernicus.org/articles/11/959/2020/
