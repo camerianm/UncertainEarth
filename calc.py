@@ -21,8 +21,6 @@ percentiles=[0.023, 0.159, 0.5, 0.841, 0.977]
 mins = ['C2/c,wt%', 'Wus,wt%', 'Pv,wt%', 'Sp,wt%', 'O,wt%', 'Wad,wt%', 'Ring,wt%', 'Opx,wt%', 'Cpx,wt%', 'Aki,wt%', 'Gt_maj,wt%', 'Ppv,wt%', 'CF,wt%', 'st,wt%', 'ca-pv,wt%']
 percentilenames=['2.3%', '15.9%', '50%', '84.1%', '97.7%']
 R_idealgas = 8.314
-minT, maxT = 1600, 2100
-tmin, tmax = 2.5, 3.9
 cloud_alpha = lambda nruns: 1./np.log(nruns)
 
 def round_up(n, decimals=decimals):
@@ -54,7 +52,7 @@ def case_defs(nruns: int, constants: list) -> pd.DataFrame:
                          #'Gs_list' : list(np.random.normal(2, 1, nruns)),  # Grain size ratio Archean/Present - span from se.copernicus.org/articles/11/959/2020/
                          #'pGs_list' : list(np.random.normal(1.74, 0.12, nruns)), #Grain size exponent + uncertainty
                          #'act_vol': list((0.01**3) * pd.Series(np.random.normal(6.75, 13.23, nruns))) #6.75, 13.23, nruns)))
-                          'betatransition' : list(np.random.uniform(2.3, 3.5, nruns)),
+                          'betatransition' : list(np.random.uniform(2.756, 3.344, nruns)),
                          })
     for i in constants:
         cases[i] = len(cases.index) * [cases[i].mean()]
@@ -111,13 +109,14 @@ def superimpose_Archean_temperatures(cases: pd.DataFrame):
     """
     plt.scatter(x=cases['t_latearc'], y=cases['Tp_latearc'], c='coral', alpha=(1./np.log(0.5*len(cases['t_latearc']))), label='Late Archean')
     plt.scatter(x=cases['t_midarc'], y=cases['Tp_midarc'], c='maroon', alpha=(1./np.log(0.5*len(cases['t_latearc']))), label='Mid Archean')
+    plt.scatter(x=cases['t_phanero'], y=cases['Tp_phanero'], c='gold', alpha=(1./np.log(0.5*len(cases['t_phanero']))), label='Phanerozoic')
     plt.xlabel('Age (Ga)', fontsize=15)
     plt.ylabel('$T_p$ (K)', fontsize=15)
-    plt.title('Mid- and Late-Archean mantle thermal states', fontsize=16)
+    plt.title('Paleo mantle thermal states', fontsize=16)
     plt.ylim(Tpmin, Tpmax)
     plt.xlim(tmin, tmax)
     return
-
+'''
 def geotherms() -> [pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
 	"""
 	Import upper-mantle solidus, liquidus, and upper+lower bounds of 1623K adiabat, for sanity check.
@@ -140,50 +139,53 @@ def linear_geotherm(Tp=1625., gradient=0.35, maxP=20.0):
 		'PressureGPa': np.linspace(0.1, maxP, 50)})
 	return(geotherm)
 
-def geotherm_plot(maxP=20.0, contours=False, WM=None, Tp=1625.0, gradient=0.35):
+def geotherm_plot(df : pd.DataFrame, maxP=20.0, contours=False, Tp=1625.0, gradient=0.35):
 	"""
-	Plot geotherm with respect to relevant properties from PerPlex output
+	Plot geotherm with respect to relevant properties (alpha, Cp, rho) from PerPlex output.
+	:df: pandas DataFrame; grid to plot. Either upper-mantle (UM) or whole-mantle (WM). Choose WM if maxP > 122.
+	:maxP: float; highest P (in GPa) to show in plot. default 20.0GPa.
+	:contours: boolean; default False. Contours derived from confidence intervals about mean within likely Tp range traversed over time
+	:Tp: potential temperature at which to start linear geotherms.
+	:gradient: float; Kelvin per kilometer; 0.35 or 0.5 recommended for whole-mantle
 	"""
 	solidus, liquidus, high_adiabat, low_adiabat = geotherms()
 	linear_adiabat = linear_geotherm(Tp, gradient, maxP)
-	if (WM==None):
-		UM, LM, WM = PTXgrids()  # allows user to selectively replace if using different grid.
-	CI_to_show=[0.023, 0.977]
+	CI_to_show=percentiles
 	fields = ['alpha', 'Cp', 'rho']
-	df=WM
 	for index, value in enumerate(fields):
-	    Z = df.pivot_table(index='Tp', columns='P', values=value).T.values
-	    X_unique = np.sort(df['Tp'].unique())
-	    Y_unique = np.sort(df['P'].unique())
-	    X, Y = np.meshgrid(X_unique, Y_unique)
-	    plt.pcolormesh(X, Y, Z, shading='gouraud', cmap='rainbow', 
-	                   vmin=df[df['P']<maxP][value].describe(percentiles=CI_to_show)[[4]],
-	                   vmax=df[df['P']<maxP][value].describe(percentiles=CI_to_show)[[6]])
-	    plt.ylabel('Pressure (GPa)')
-	    plt.xlabel('Temperature (K)')
-	    plt.title(value)
-	    plt.gca().invert_yaxis()
-	    plt.colorbar(extend='both').set_label(value)
-	    plt.tight_layout()
-	    plt.plot(solidus['TemperatureK'], solidus['PressureGPa'], c='k', lw=3, label='Solidus')
-	    plt.plot(liquidus['TemperatureK'], liquidus['PressureGPa'], c='orange', lw=3, label='Liquidus')
-	    plt.plot(high_adiabat['TemperatureK'], high_adiabat['PressureGPa'], c='white', lw=3, alpha=0.8, label='1573K/1300C')
-	    plt.plot(low_adiabat['TemperatureK'], low_adiabat['PressureGPa'], c='white', lw=4, alpha=0.8, label='1673K/1400C')
-	    plt.plot(linear_adiabat['TemperatureK'], linear_adiabat['PressureGPa'],
-	             label=str(gradient)+'K/km', c='k', lw=2, ls='--')
-	    plt.legend(loc="lower right")
-	    if maxP>136:
-	        plt.yscale('log')
-	        plt.legend(loc="upper right")
-	    if contours==True:
-	        levels=list(df[value].describe(percentiles=percentiles)[4:9])
-	        plot = plt.contour(X,Y,Z,levels,colors='k')
-	        plt.setp(plot.collections, path_effects=[pe.withStroke(linewidth=4, foreground="white")])
-	        plt.clabel(plot,fmt='%f',fontsize=12.0)
-	    plt.xlim(1400, 2500)
-	    plt.ylim(maxP, 0)
-	    plt.show()
+		Z = df.pivot_table(index='Tp', columns='P', values=value).T.values
+		X_unique = np.sort(df['Tp'].unique())
+		Y_unique = np.sort(df['P'].unique())
+		X, Y = np.meshgrid(X_unique, Y_unique)
+		plt.pcolormesh(X, Y, Z, shading='gouraud', cmap='rainbow', 
+						vmin=df[df['P']<maxP][value].describe(percentiles=CI_to_show)[[5]],
+						vmax=df[df['P']<maxP][value].describe(percentiles=CI_to_show)[[7]])
+		plt.ylabel('Pressure (GPa)')
+		plt.xlabel('Temperature (K)')
+		plt.title(value)
+		plt.gca().invert_yaxis()
+		plt.colorbar(extend='both').set_label(value)
+		plt.tight_layout()
+		plt.plot(solidus['TemperatureK'], solidus['PressureGPa'], c='k', lw=3, label='Solidus')
+		plt.plot(liquidus['TemperatureK'], liquidus['PressureGPa'], c='orange', lw=3, label='Liquidus')
+		plt.plot(high_adiabat['TemperatureK'], high_adiabat['PressureGPa'], c='white', lw=3, alpha=0.8, label='1573K/1300C')
+		plt.plot(low_adiabat['TemperatureK'], low_adiabat['PressureGPa'], c='white', lw=4, alpha=0.8, label='1673K/1400C')
+		plt.plot(linear_adiabat['TemperatureK'], linear_adiabat['PressureGPa'],
+				label=str(gradient)+'K/km', c='k', lw=2, ls='--')
+		plt.legend(loc="lower right")
+		if maxP>136:
+			plt.yscale('log')
+			plt.legend(loc="upper right")
+		if contours==True:
+			levels=list(df[value].describe(percentiles=percentiles)[4:9])
+			plot = plt.contour(X,Y,Z,levels,colors='k')
+			plt.setp(plot.collections, path_effects=[pe.withStroke(linewidth=4, foreground="white")])
+			plt.clabel(plot,fmt='%f',fontsize=12.0)
+		plt.xlim(Tpmin, Tpmax)
+		plt.ylim(maxP, 0)
+		plt.show()
 	return()
+'''
 
 # Setting up RE: H(t)
 
@@ -207,7 +209,12 @@ def HPE_budgets(nruns : int, timestep : float, trange : list):
         cr_Ht_max = cr_Ht_max.add(c, fill_value=0.0)
     return(Isos, bse_budgets, cr_budgets, bse_Ht_max.transpose(), cr_Ht_max.transpose())
 
-def growth_models(crust_Ht_max : pd.DataFrame, nruns : int, timestep : float):
+def growth_models(timestep : float):
+    """
+    Generate representative crustal growth curves over Earth history.
+    :timestep: float, either 0.001 or 0.01 - ensure "decimals" in calc is changed according to precision
+    :return: pandas DataFrame
+    """
     times = np.arange(0, 4.5+timestep, timestep).round(decimals)
     timefrac = pd.Series(1.00-(times/times.max()), index=times)
     GrowthCurves = pd.DataFrame({'Linear': timefrac,
@@ -220,25 +227,16 @@ def growth_models(crust_Ht_max : pd.DataFrame, nruns : int, timestep : float):
                                 index = times)
     return(GrowthCurves)
 
-def stat_sample_growth_models(bse_Ht_max=None, crust_Ht_max=None, GrowthCurves=None, nruns=100, timestep=0.001, showplot=True):
-    if (type(bse_Ht_max)==None) or (type(crust_Ht_max)==None):
-        temp1, temp2, temp3, bse_Ht_max, crust_Ht_max = calc.HPE_budgets(nruns=nruns, timestep=0.1)
-    if (type(GrowthCurves)==None):
-        GrowthCurves = growth_models(nruns=nruns, timestep=timestep)
-    bse_sample = bse_Ht_max.transpose().describe(percentiles=percentiles).transpose().drop(
-        ['count', 'mean', 'std', 'min', 'max'], axis=1)  # Get statistics for each time snapshot
-    crust_sample = crust_Ht_max.transpose().describe(percentiles=percentiles).transpose().drop(
-        ['count', 'mean', 'std', 'min', 'max'], axis=1)  # Get statistics for each time snapshot# Get statistics for each time snapshot
-    if showplot==True:
-        GrowthCurves.plot(cmap='rainbow', title='Proposed continental growth curves')
-        bse_sample.plot(cmap='rainbow', title='Max Bulk Silicate Earth heat production')
-        crust_sample.plot(cmap='rainbow', title='Max Continental Crust heat production')
-    plt.show()
-    return(bse_sample, crust_sample)
-
-def plot_archean_crust_uncert(GrowthCurves: pd.DataFrame, crust_sample: pd.DataFrame, cases=None):
+def plot_crust_uncert(GrowthCurves: pd.DataFrame, crust_df: pd.DataFrame):
+    """
+    Plot a statistical snapshot of crustal heat production for each growth curve. Condense labels - one label per growth curve.
+    :GrowthCurve: pandas DataFrame
+    :crust_df: pandas DataFrame - e.g. cr_Ht_max
+    :return: plt.show()
+    """
     assign_colors = cm.get_cmap('rainbow', len(GrowthCurves.columns))
     my_cm = dict(zip(list(GrowthCurves.columns), np.linspace(0, 1, len(GrowthCurves.columns))))
+    crust_sample = CI_rows(crust_df)
     for curve in GrowthCurves:
         showplot=plt.plot(GrowthCurves.index, crust_sample.mul(GrowthCurves[curve], axis=0), 
                            c=assign_colors(my_cm[curve]), label=curve)
@@ -247,7 +245,7 @@ def plot_archean_crust_uncert(GrowthCurves: pd.DataFrame, crust_sample: pd.DataF
     plt.xlabel('Age (Ga)')
     plt.ylabel('Q (TW)')
     plt.legend(loc='center left', bbox_to_anchor=(1, 0.5), labels=mylegend.values(), handles=mylegend.keys())
-    plt.title('Archean crustal heat production, by growth model')
+    plt.title('Crustal heat production, by growth model')
     plt.show()
     return(plt.show())
 
@@ -280,27 +278,40 @@ def impose_growth_models_on_mantle(GrowthCurves: pd.DataFrame, bse_df: pd.DataFr
     return(output)
 
 def CI_rows(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Calculate equivalent of [-2, -1, 0, 1, and 2] confidence interval about median values of each ROW in a pandas DataFrame.
+    This is useful when, for example, each row represents a time step traversed by several models.
+    Do so via cumulative percentages displayed here: 
+    https://en.wikipedia.org/wiki/Confidence_interval#/media/File:Normal_distribution_and_scales.gif
+    :df: pandas DataFrame
+    :return: pandas DataFrame
+    """
     return(df.transpose().describe(percentiles=percentiles).transpose().drop(['count', 'mean', 'std', 'min', 'max'], axis=1))
 
 def CI_cols(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Calculate equivalent of [-2, -1, 0, 1, and 2] confidence interval about median values of each COLUMN in a pandas DataFrame.
+    Do so via cumulative percentages displayed here: 
+    https://en.wikipedia.org/wiki/Confidence_interval#/media/File:Normal_distribution_and_scales.gif
+    :df: pandas DataFrame
+    :return: pandas DataFrame
+    """
     return(df.describe(percentiles=percentiles).drop(['count', 'mean', 'std', 'min', 'max'], axis=0))
 
 '''
-def plot_
-showplot=True
-if showplot==True:
-    ax=MantleHeat[meancases].plot(colormap='rainbow', legend=True) #, title='Mantle HP, assuming MEAN abundances of HPEs')
-    MantleHeat[upperlower].plot(colormap='rainbow', legend=True, ax=ax, ls='--') #title='Mantle HP, assuming MEAN abundances of HPEs')
-    ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-    plt.xlim(cases.t_latearc.min(), cases.t_midarc.max())
-    ax2 = MantleHeat.plot(c='k', legend=False, alpha=0.1, label='_nolegend_')
-    plt.xlim(cases.t_latearc.min(), cases.t_midarc.max())
-
-mantle_Ht_max = pd.DataFrame()
-for curve in GrowthCurves:
-    for i in bse_Ht_max:
-        mantle_Ht_max[i] = bse_Ht_max[i] - crust_Ht_max[i] * GrowthCurves[curve]
-    mantle_Ht_max.plot(alpha=0.1, legend=False, c='k')
-    plt.xlim(cases.t_latearc.min(), cases.t_midarc.max())
-
+def stat_sample_growth_models(bse_Ht_max=None, crust_Ht_max=None, GrowthCurves=None, nruns=100, timestep=0.001, showplot=True):
+    if (type(bse_Ht_max)==None) or (type(crust_Ht_max)==None):
+        temp1, temp2, temp3, bse_Ht_max, crust_Ht_max = calc.HPE_budgets(nruns=nruns, timestep=0.1)
+    if (type(GrowthCurves)==None):
+        GrowthCurves = growth_models(nruns=nruns, timestep=timestep)
+    bse_sample = bse_Ht_max.transpose().describe(percentiles=percentiles).transpose().drop(
+        ['count', 'mean', 'std', 'min', 'max'], axis=1)  # Get statistics for each time snapshot
+    crust_sample = crust_Ht_max.transpose().describe(percentiles=percentiles).transpose().drop(
+        ['count', 'mean', 'std', 'min', 'max'], axis=1)  # Get statistics for each time snapshot# Get statistics for each time snapshot
+    if showplot==True:
+        GrowthCurves.plot(cmap='rainbow', title='Proposed continental growth curves')
+        bse_sample.plot(cmap='rainbow', title='Max Bulk Silicate Earth heat production')
+        crust_sample.plot(cmap='rainbow', title='Max Continental Crust heat production')
+    plt.show()
+    return(bse_sample, crust_sample)
 '''
