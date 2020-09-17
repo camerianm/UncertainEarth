@@ -22,7 +22,7 @@ mins = ['C2/c,wt%', 'Wus,wt%', 'Pv,wt%', 'Sp,wt%', 'O,wt%', 'Wad,wt%', 'Ring,wt%
 percentilenames=['2.3%', '15.9%', '50%', '84.1%', '97.7%']
 R_idealgas = 8.314
 cloud_alpha = lambda nruns: 1./np.log(nruns)
-
+curvenames = ['Linear', 'Sqrt', 'Fifth', 'HalfBy2.0', 'HalfBy2.5', 'HalfBy3.0', 'HalfBy3.5']
 def round_up(n, decimals=decimals):
     multiplier = 10 ** decimals
     return math.ceil(n * multiplier) / multiplier
@@ -42,6 +42,7 @@ def case_defs(nruns: int, constants: list) -> pd.DataFrame:
                          'Tp_phanero' : list(np.random.normal(1653., 10.0, nruns)),  # Method: Abbott et al 1994
                          'Tp_latearc': list(np.random.normal(1840.15, 18.0, nruns)), # Method: Abbott et al 1994
                          'Tp_midarc': list(np.random.normal(1891., 55.0, nruns)),    # Method: Abbott et al 1994
+                         't_present' : nruns * [0],
                          't_phanero': list(np.random.normal(0.302, 0.033, nruns)),   # Method: Abbott et al 1994
                          't_latearc' : list(np.random.normal(2.756, 0.028, nruns)),  # Method: Abbott et al 1994
                          't_midarc': list(np.random.normal(3.344, 0.114, nruns)),    # Method: Abbott et al 1994
@@ -52,12 +53,30 @@ def case_defs(nruns: int, constants: list) -> pd.DataFrame:
                          #'Gs_list' : list(np.random.normal(2, 1, nruns)),  # Grain size ratio Archean/Present - span from se.copernicus.org/articles/11/959/2020/
                          #'pGs_list' : list(np.random.normal(1.74, 0.12, nruns)), #Grain size exponent + uncertainty
                          #'act_vol': list((0.01**3) * pd.Series(np.random.normal(6.75, 13.23, nruns))) #6.75, 13.23, nruns)))
-                          'betatransition' : list(np.random.uniform(2.756, 3.344, nruns)),
+                         # 'betatransition' : list(np.random.uniform(2.756, 3.344, nruns)),
                          })
     for i in constants:
         cases[i] = len(cases.index) * [cases[i].mean()]
     return(cases)
 
+def beta_budgets(nruns: int, timestep: float, SL_at : float, SL_b: float, PT_at: float, PT_b: float, duration: float) -> pd.DataFrame:
+    transitionstart = np.linspace(SL_at, PT_at+duration, nruns)
+    transitionstop = np.linspace(SL_at-duration, PT_at, nruns)
+    transitionstep = timestep * (SL_b - PT_b)/duration
+    times = np.arange(0, 4.5+timestep, timestep).round(decimals)
+    betas = pd.DataFrame(index=times)
+    for i in range(len(transitionstart)):
+        blist = [0]
+        for t in times:
+            if t<=transitionstop[i]:
+                blist.append(PT_b)
+            elif (t>transitionstop[i]) and (t<transitionstart[i]):
+                blist.append(blist[-1]+transitionstep)
+            else:
+                blist.append(SL_b)
+        betas[i] = blist[1:]
+    return(betas)
+        
 def PTXgrids() -> [pd.DataFrame, pd.DataFrame, pd.DataFrame]:
 	"""
 	Accesses and filters ExoPlex-derived P-T-X grids for Earthlike composition.
@@ -107,9 +126,9 @@ def superimpose_Archean_temperatures(cases: pd.DataFrame):
     """
     Add paleo-temperature distributions to the current time vs temperature plot object
     """
-    plt.scatter(x=cases['t_latearc'], y=cases['Tp_latearc'], c='coral', alpha=(1./np.log(0.5*len(cases['t_latearc']))), label='Late Archean')
-    plt.scatter(x=cases['t_midarc'], y=cases['Tp_midarc'], c='maroon', alpha=(1./np.log(0.5*len(cases['t_latearc']))), label='Mid Archean')
-    plt.scatter(x=cases['t_phanero'], y=cases['Tp_phanero'], c='gold', alpha=(1./np.log(0.5*len(cases['t_phanero']))), label='Phanerozoic')
+    plt.scatter(x=cases['t_latearc'], y=cases['Tp_latearc'], c='k', alpha=(1./np.log(0.5*len(cases['t_latearc']))), label='Late Archean')
+    plt.scatter(x=cases['t_midarc'], y=cases['Tp_midarc'], c='k', alpha=(1./np.log(0.5*len(cases['t_latearc']))), label='Mid Archean')
+    plt.scatter(x=cases['t_phanero'], y=cases['Tp_phanero'], c='k', alpha=(1./np.log(0.5*len(cases['t_phanero']))), label='Phanerozoic')
     plt.xlabel('Age (Ga)', fontsize=15)
     plt.ylabel('$T_p$ (K)', fontsize=15)
     plt.title('Paleo mantle thermal states', fontsize=16)
