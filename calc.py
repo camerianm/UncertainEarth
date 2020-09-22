@@ -126,14 +126,14 @@ def superimpose_Archean_temperatures(cases: pd.DataFrame):
     """
     Add paleo-temperature distributions to the current time vs temperature plot object
     """
-    plt.scatter(x=cases['t_latearc'], y=cases['Tp_latearc'], c='k', alpha=(1./np.log(0.5*len(cases['t_latearc']))), label='Late Archean')
-    plt.scatter(x=cases['t_midarc'], y=cases['Tp_midarc'], c='k', alpha=(1./np.log(0.5*len(cases['t_latearc']))), label='Mid Archean')
-    plt.scatter(x=cases['t_phanero'], y=cases['Tp_phanero'], c='k', alpha=(1./np.log(0.5*len(cases['t_phanero']))), label='Phanerozoic')
+    plt.scatter(x=cases['t_latearc'], y=cases['Tp_latearc'], c='gray', alpha=(1./np.log(0.5*len(cases['t_latearc']))), label='Late Archean', rasterized=True)
+    plt.scatter(x=cases['t_midarc'], y=cases['Tp_midarc'], c='gray', alpha=(1./np.log(0.5*len(cases['t_latearc']))), label='Mid Archean', rasterized=True)
+    #plt.scatter(x=cases['t_phanero'], y=cases['Tp_phanero'], c='k', alpha=(1./np.log(0.5*len(cases['t_phanero']))), label='Phanerozoic')
     plt.xlabel('Age (Ga)', fontsize=15)
     plt.ylabel('$T_p$ (K)', fontsize=15)
     plt.title('Paleo mantle thermal states', fontsize=16)
     plt.ylim(Tpmin, Tpmax)
-    plt.xlim(tmin, tmax)
+    #plt.xlim(tmin, tmax)
     return
 '''
 def geotherms() -> [pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
