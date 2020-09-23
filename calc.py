@@ -23,6 +23,9 @@ percentilenames=['2.3%', '15.9%', '50%', '84.1%', '97.7%']
 R_idealgas = 8.314
 cloud_alpha = lambda nruns: 1./np.log(nruns)
 curvenames = ['Linear', 'Sqrt', 'Fifth', 'HalfBy2.0', 'HalfBy2.5', 'HalfBy3.0', 'HalfBy3.5']
+
+
+
 def round_up(n, decimals=decimals):
     multiplier = 10 ** decimals
     return math.ceil(n * multiplier) / multiplier
@@ -95,7 +98,7 @@ def PTXgrids() -> [pd.DataFrame, pd.DataFrame, pd.DataFrame]:
 	LM = LM.drop(['UpperLower'], axis=1)
 	return(UM, LM, WM)
 
-def slice_PTXgrid(grid: pd.DataFrame, targetP=1.0, lowerrow=0) -> pd.DataFrame:
+def slice_PTXgrid(grid: pd.DataFrame, targetP=1.0) -> pd.DataFrame:
 	"""
 	Slices upper or lower mantle P-T-X grid at the relevant reference pressure using linear interpolation.
 	:grid: pandas DataFrame, either UM or LM - whichever inludes the reference pressure and its highest expected temperature
@@ -103,8 +106,9 @@ def slice_PTXgrid(grid: pd.DataFrame, targetP=1.0, lowerrow=0) -> pd.DataFrame:
 	:lowerrow: integer, default 0 - lowerrow and upperrow (not specified) would bound targetP in grid
 	:return: pandas DataFrame
 	"""
-	upperrow = lowerrow + 1
 	df=grid
+	upperrow = next(row for row,val in enumerate(df['P'].unique()) if (val > targetP))
+	lowerrow = upperrow - 1
 	lower, upper = df['P'].unique()[lowerrow], df['P'].unique()[upperrow]
 	if (upper<targetP) or (lower>targetP):  # Help user ID the rows between which targetP would hypothetically be found
 		print('Is targetP ', targetP, 'above ', lower, ' and below', upper, '?')
@@ -135,7 +139,7 @@ def superimpose_Archean_temperatures(cases: pd.DataFrame):
     plt.ylim(Tpmin, Tpmax)
     #plt.xlim(tmin, tmax)
     return
-'''
+
 def geotherms() -> [pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
 	"""
 	Import upper-mantle solidus, liquidus, and upper+lower bounds of 1623K adiabat, for sanity check.
@@ -185,12 +189,12 @@ def geotherm_plot(df : pd.DataFrame, maxP=20.0, contours=False, Tp=1625.0, gradi
 		plt.gca().invert_yaxis()
 		plt.colorbar(extend='both').set_label(value)
 		plt.tight_layout()
-		plt.plot(solidus['TemperatureK'], solidus['PressureGPa'], c='k', lw=3, label='Solidus')
+		plt.plot(solidus['TemperatureK'], solidus['PressureGPa'], c='gray', lw=3, label='Solidus')
 		plt.plot(liquidus['TemperatureK'], liquidus['PressureGPa'], c='orange', lw=3, label='Liquidus')
 		plt.plot(high_adiabat['TemperatureK'], high_adiabat['PressureGPa'], c='white', lw=3, alpha=0.8, label='1573K/1300C')
 		plt.plot(low_adiabat['TemperatureK'], low_adiabat['PressureGPa'], c='white', lw=4, alpha=0.8, label='1673K/1400C')
 		plt.plot(linear_adiabat['TemperatureK'], linear_adiabat['PressureGPa'],
-				label=str(gradient)+'K/km', c='k', lw=2, ls='--')
+				label=str(gradient)+'K/km', c='gray', lw=2, ls='--')
 		plt.legend(loc="lower right")
 		if maxP>136:
 			plt.yscale('log')
@@ -204,7 +208,7 @@ def geotherm_plot(df : pd.DataFrame, maxP=20.0, contours=False, Tp=1625.0, gradi
 		plt.ylim(maxP, 0)
 		plt.show()
 	return()
-'''
+
 
 # Setting up RE: H(t)
 
