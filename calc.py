@@ -9,7 +9,7 @@ from matplotlib import cm
 from matplotlib import rcParams as rcParams
 rcParams['figure.dpi'] = 200
 
-decimals = 2
+decimals = 3
 tmin, tmax = 0.0, 3.9
 Tpmin, Tpmax = 1600, 2100
 R_idealgas = 8.314
