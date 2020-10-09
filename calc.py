@@ -22,9 +22,21 @@ mins = ['C2/c,wt%', 'Wus,wt%', 'Pv,wt%', 'Sp,wt%', 'O,wt%', 'Wad,wt%', 'Ring,wt%
 percentilenames=['2.3%', '15.9%', '50%', '84.1%', '97.7%']
 R_idealgas = 8.314
 cloud_alpha = lambda nruns: 1./np.log(nruns)
-curvenames = ['Linear', 'Sqrt', 'Fifth', 'HalfBy2.0', 'HalfBy2.5', 'HalfBy3.0', 'HalfBy3.5']
+curvenames = ['BSE', 'Linear', 'Sqrt', 'Fifth', 'HalfBy2.0', 'HalfBy2.5', 'HalfBy3.0', 'HalfBy3.5']
+defnames = (['Tp_present', 'Tp_phanero', 'Tp_latearc', 'Tp_midarc', 't_present',
+       't_phanero', 't_latearc', 't_midarc', 'Ea_list', 'Qm_list', 'rho_ref',
+       'Cp_ref', 'alpha_ref', 'deltaT_ref', 'endtdiff', 'starttdiff'])
 
-
+def Abbott1994():
+    np.random.seed(5)
+    nruns=250
+    return(pd.DataFrame({'Tp_phanero' : list(np.random.normal(1653., 10.0, nruns)),  # Method: Abbott et al 1994
+                         'Tp_latearc': list(np.random.normal(1840.15, 18.0, nruns)), # Method: Abbott et al 1994
+                         'Tp_midarc': list(np.random.normal(1891., 55.0, nruns)),    # Method: Abbott et al 1994
+                         't_phanero': list(np.random.normal(0.302, 0.033, nruns)),   # Method: Abbott et al 1994
+                         't_latearc' : list(np.random.normal(2.756, 0.028, nruns)),  # Method: Abbott et al 1994
+                         't_midarc': list(np.random.normal(3.344, 0.114, nruns)),    # Method: Abbott et al 1994
+                          }))
 
 def round_up(n, decimals=decimals):
     multiplier = 10 ** decimals
@@ -41,7 +53,8 @@ def case_defs(nruns: int, constants: list) -> pd.DataFrame:
     :nruns: integer
     :return: pandas DataFrame
     """
-    cases = pd.DataFrame({'Tp_present': list(np.random.normal(1610., 35.0, nruns)),  # Method: Katsura et al 2010
+    np.random.seed(5)  #for reproducibility
+    cases = pd.DataFrame({'Tp_present': list(np.random.normal(1610., 10.0, nruns)),  # Method: Katsura et al 2010 w/Abbott uncert
                          'Tp_phanero' : list(np.random.normal(1653., 10.0, nruns)),  # Method: Abbott et al 1994
                          'Tp_latearc': list(np.random.normal(1840.15, 18.0, nruns)), # Method: Abbott et al 1994
                          'Tp_midarc': list(np.random.normal(1891., 55.0, nruns)),    # Method: Abbott et al 1994
@@ -130,9 +143,10 @@ def superimpose_Archean_temperatures(cases: pd.DataFrame):
     """
     Add paleo-temperature distributions to the current time vs temperature plot object
     """
-    plt.scatter(x=cases['t_latearc'], y=cases['Tp_latearc'], c='gray', alpha=(1./np.log(0.5*len(cases['t_latearc']))), label='Late Archean', rasterized=True)
-    plt.scatter(x=cases['t_midarc'], y=cases['Tp_midarc'], c='gray', alpha=(1./np.log(0.5*len(cases['t_latearc']))), label='Mid Archean', rasterized=True)
-    #plt.scatter(x=cases['t_phanero'], y=cases['Tp_phanero'], c='k', alpha=(1./np.log(0.5*len(cases['t_phanero']))), label='Phanerozoic')
+    cases=Abbott1994()
+    plt.scatter(x=cases['t_latearc'], y=cases['Tp_latearc'], c='lightgray', alpha=(1./np.log(0.5*len(cases['t_latearc']))), label='Late Archean', rasterized=True)
+    plt.scatter(x=cases['t_midarc'], y=cases['Tp_midarc'], c='lightgray', alpha=(1./np.log(0.5*len(cases['t_latearc']))), label='Mid Archean', rasterized=True)
+    plt.scatter(x=cases['t_phanero'], y=cases['Tp_phanero'], c='lightgray', alpha=(1./np.log(0.5*len(cases['t_phanero']))), label='Phanerozoic')
     plt.xlabel('Age (Ga)', fontsize=15)
     plt.ylabel('$T_p$ (K)', fontsize=15)
     plt.title('Paleo mantle thermal states', fontsize=16)
@@ -213,6 +227,7 @@ def geotherm_plot(df : pd.DataFrame, maxP=20.0, contours=False, Tp=1625.0, gradi
 # Setting up RE: H(t)
 
 def HPE_budgets(nruns : int, timestep : float, trange : list):
+    np.random.seed(5)  #for reproducibility
     Isos = pd.read_csv('HPEs.csv', header=0, index_col=0)
     bse_budgets, cr_budgets = pd.DataFrame(), pd.DataFrame()
     for i in Isos.index:
@@ -240,7 +255,8 @@ def growth_models(timestep : float):
     """
     times = np.arange(0, 4.5+timestep, timestep).round(decimals)
     timefrac = pd.Series(1.00-(times/times.max()), index=times)
-    GrowthCurves = pd.DataFrame({'Linear': timefrac,
+    GrowthCurves = pd.DataFrame({'BSE': len(times)*[0.0],
+                                 'Linear': timefrac,
                                  'Sqrt': timefrac ** 0.5,
                                 'Fifth': timefrac ** 0.2,
                                 'HalfBy2.0': 1 - 1/(1+np.exp(4*(2.0-times))),
