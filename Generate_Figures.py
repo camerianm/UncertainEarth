@@ -20,7 +20,6 @@ GrowthCurves = pd.read_csv('GrowthCurves.csv', header=0, index_col=0)
 GrowthCurves.columns = GrowthCurves.columns.map(Curves)
 GrowthCurves.plot(xlabel='Time (Ga)', ylabel='Fraction of Continental Crust', title=None,#'Crustal Growth Models', 
                   cmap='bwr_r', figsize=(nxn, nxn), xlim=(0, GrowthCurves.index[-1]), ylim=0, legend=True)
-plt.grid(alpha=0.2)
 plt.xlim(0,4.5)
 plt.tight_layout()
 plt.savefig('OUTPUT/GrowthModels.pdf')
