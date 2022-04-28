@@ -77,6 +77,7 @@ def generate_time_evolution(tmax_Ga: float):
     """
     timestep=np.round(0.001,decimals) #time increment of model, used as index during scoring
     GrowthCurves = growth_models(timestep=timestep) #import growth curves; chg their time increment to ours
+    GrowthCurves.index = np.round(GrowthCurves.index,decimals)
     times = GrowthCurves.index
     timerange = times[:int(tmax_evolution * 1000)+5]
     return(timestep, GrowthCurves, times, timerange)
