@@ -112,6 +112,7 @@ def generate_HPE_budgets(nruns : int, timestep : float, trange : list):
 
 def evolve_model_onebeta(b:float, mantle_HP, cases):
     batches = dict()
+    STNC = -1 * seconds * 1.0e12 * timestep / C
     for curve, HP in mantle_HP.items():
         batches[curve] = pd.DataFrame(index=HP.index)
         for r, p in cases.T.items():
@@ -121,7 +122,7 @@ def evolve_model_onebeta(b:float, mantle_HP, cases):
             numer = denom
             HPi = HP[r].values
             for Ht in HPi:
-                dT = -1 * (Ht - Qt) * seconds * 1.0e12 * timestep / C
+                dT = (Ht - Qt) * STNC
                 denom = np.prod([Tp**(b+1), np.exp(Ea/(R_idealgas*(Tp)))**(-1*b)])
                 Tp = Tp + dT
                 numer = np.prod([Tp**(b+1), np.exp(Ea/(R_idealgas*(Tp)))**(-1*b)])
