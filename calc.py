@@ -43,6 +43,15 @@ def Abbott(nruns: int):     # Abbott et al 1994
     't_midarc': mu_sig(nruns, 3.344, 0.114)})
 
 A94 = Abbott(3)
+def Z_scores(df):
+    times = [A94['t_phanero'].mu, A94['t_latearc'].mu, A94['t_midarc'].mu]
+    temps = df.loc[times].T
+    temps.columns = ['Tp_phanero', 'Tp_latearc', 'Tp_midarc']
+    Zs = pd.DataFrame(index=temps.index)
+    for i in temps.columns:
+        Zs[i] = (temps[i] - A94[i].mu) / A94[i].sig
+    Zs['RMSE'] = (Zs**2).T.sum()**0.5
+    return(Zs)
 
 def plot_gaussian_target(ax):
     fc = ['black', 'dimgray', 'darkgray', 'lightgray'] #['black', 'gold', 'crimson', 'dodgerblue']
