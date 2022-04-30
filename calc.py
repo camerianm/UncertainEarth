@@ -119,8 +119,8 @@ def evolve_model_onebeta(b:float, mantle_HP, cases):
             Qt, Ea, Tp = p['Qm'], p['Ea'], p['Tp']
             denom = np.prod([(Tp)**(b+1), np.exp(Ea/(R_idealgas*(Tp)))**(-1*b)])
             numer = denom
-            for t in HP.index:
-                Ht = HP[r].loc[t]
+            HPi = HP[r].values
+            for Ht in HPi:
                 dT = -1 * (Ht - Qt) * seconds * 1.0e12 * timestep / C
                 denom = np.prod([Tp**(b+1), np.exp(Ea/(R_idealgas*(Tp)))**(-1*b)])
                 Tp = Tp + dT
