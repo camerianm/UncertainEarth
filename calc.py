@@ -50,6 +50,7 @@ def Z_scores(df):
     Zs = pd.DataFrame(index=temps.index)
     for i in temps.columns:
         Zs[i] = (temps[i] - A94[i].mu) / A94[i].sig
+    Zs.fillna(np.inf, inplace=True)
     Zs['RMSE'] = (Zs**2).T.sum()**0.5
     return(Zs)
 
