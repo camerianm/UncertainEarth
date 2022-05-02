@@ -181,5 +181,19 @@ def strict_median_heat_budget(nruns, timestep, trange : list):
     strict_median_heat_budget = generate_HPE_budgets(1, timestep, [0.0, tmax])
     return([HPE_budgets[0]]+[imitate_distribution(HPE_budgets[i], strict_median_heat_budget[i]) for i in [1, 2, 3, 4]])
 
+def interpolate_temps_at(df: pd.DataFrame):
+    targets = A94['t_phanero'].mu, A94['t_latearc'].mu, A94['t_midarc'].mu
+    index = list(df.index)
+    idxs = np.array([next([x-1,x] for x, val in enumerate(index) if val > targets[i]) 
+        for i in list(range(len(targets)))]).flatten()
+    snap = df.iloc[idxs]
+    early_phanero_wt = (targets[0]-snap.index[0])/(snap.index[1]-snap.index[0])
+    early_latearc_wt = (targets[1]-snap.index[2])/(snap.index[3]-snap.index[2])
+    early_midarc_wt = (targets[2]-snap.index[4])/(snap.index[5]-snap.index[4])
+    interp = pd.DataFrame(
+            {'Tp_phanero': early_phanero_wt*snap.iloc[0] + (1-early_phanero_wt)*snap.iloc[1],
+              'Tp_latearc': early_latearc_wt*snap.iloc[2] + (1-early_latearc_wt)*snap.iloc[3],
+              'Tp_midarc': early_midarc_wt*snap.iloc[4] + (1-early_latearc_wt)*snap.iloc[5]})
+    return(interp)
 
 
