@@ -193,7 +193,7 @@ def interpolate_temps_at(df: pd.DataFrame):
     interp = pd.DataFrame(
             {'Tp_phanero': early_phanero_wt*snap.iloc[0] + (1-early_phanero_wt)*snap.iloc[1],
               'Tp_latearc': early_latearc_wt*snap.iloc[2] + (1-early_latearc_wt)*snap.iloc[3],
-              'Tp_midarc': early_midarc_wt*snap.iloc[4] + (1-early_latearc_wt)*snap.iloc[5]})
+              'Tp_midarc': early_midarc_wt*snap.iloc[4] + (1-early_midarc_wt)*snap.iloc[5]})
     return(interp)
 
 def Z_score_from_interpolation(interp: pd.DataFrame):
