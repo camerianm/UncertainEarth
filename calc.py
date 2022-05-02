@@ -204,6 +204,7 @@ def Z_score_from_interpolation(interp: pd.DataFrame):
     for i in interp.columns:
         Zscores[i] = (interp[i] - A94[i].mu)/A94[i].sig
         Zscores[i].fillna(np.inf, inplace=True)
-    Zscores['RMSE'] = ((Zscores**2).T.sum())**0.5
+    Zscores['Z_{RMSE'] = ((Zscores**2).T.sum())**0.5
+    Zscores.columns = Zscores.columns.str.replace('Tp_', 'Z_{')+'}'
     return(Zscores)
 
