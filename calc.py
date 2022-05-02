@@ -51,7 +51,7 @@ def Z_scores(df):
     for i in temps.columns:
         Zs[i] = (temps[i] - A94[i].mu) / A94[i].sig
     Zs.fillna(np.inf, inplace=True)
-    Zs['RMSE'] = (Zs**2).T.sum()**0.5
+    Zs['RMSE'] = (((Zs**2).T.sum())/3)**0.5
     return(Zs)
 
 def plot_gaussian_target(ax):
@@ -204,7 +204,7 @@ def Z_score_from_interpolation(interp: pd.DataFrame):
     for i in interp.columns:
         Zscores[i] = (interp[i] - A94[i].mu)/A94[i].sig
         Zscores[i].fillna(np.inf, inplace=True)
-    Zscores['Z_{RMSE'] = ((Zscores**2).T.sum())**0.5
+    Zscores['Z_{RMSE'] = (((Zscores**2).T.sum())/3)**0.5
     Zscores.columns = Zscores.columns.str.replace('Tp_', 'Z_{')+'}'
     return(Zscores)
 
