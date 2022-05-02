@@ -140,6 +140,36 @@ def evolve_model_onebeta(b:float, mantle_HP, cases):
             batches[curve][r]=trajec
     return(batches)
 
+def fast_evolve_singlemodel_twobeta(b0:float, b1:float, chgt:float, Qt:float, Ea:float, Tp:float, HP:pd.Series, every=1):
+    """
+    Shortcut to getting model results.
+    :b0: present-day beta
+    :b1: past beta
+    :chgt: time (Ga BP) at which beta is assumed to have transitioned - i.e. b=b0 for t<chgt.
+    :Qt: present-day mantle heat flux (TW)
+    :Ea: activation energy of viscosity
+    :Tp: present-day mantle potential temperature (K)
+    :HP: heat-production (TW) time series (index in Ga)
+    :every: consider every Nth timestamp in HP.index to be a timestep. IMPORTANT: if chgt isn't an exact multiple of the timestep (e.g. chgt=1.004, every=5, and HP.index=[0.000, 0.001, ...]) the change is assumed to occur as soon as t>chgt.
+    """
+    tsteps = HP.index[0::every]
+    tstep = tsteps[1]-tsteps[0]
+    STNC = -1 * seconds * 1.0e12 * tstep / C
+    trajec=[Tp]   #??
+    b = b0
+    denom = np.prod([(Tp)**(b+1), np.exp(Ea/(R_idealgas*(Tp)))**(-1*b)])
+    numer = denom
+    for time, Ht in HP.loc[tsteps].items():
+        dT = (Ht - Qt) * STNC
+        denom = np.prod([Tp**(b+1), np.exp(Ea/(R_idealgas*(Tp)))**(-1*b)])
+        Tp = Tp + dT
+        numer = np.prod([Tp**(b+1), np.exp(Ea/(R_idealgas*(Tp)))**(-1*b)])
+        Qt = Qt * numer/denom
+        trajec.append(Tp)
+        if time>=chgt:
+            b = b1
+    return(dict(zip(tsteps, trajec)))
+
 def imitate_distribution(dist: pd.DataFrame, recipient: pd.DataFrame):
     for i in dist.columns:
         recipient[i] = recipient[recipient.columns[0]]
@@ -149,9 +179,6 @@ def strict_median_heat_budget(nruns, timestep, trange : list):
     HPE_budgets = generate_HPE_budgets(nruns, timestep, [0.0, tmax])
     strict_median_heat_budget = generate_HPE_budgets(1, timestep, [0.0, tmax])
     return([HPE_budgets[0]]+[imitate_distribution(HPE_budgets[i], strict_median_heat_budget[i]) for i in [1, 2, 3, 4]])
-
-
-
 
 
 
