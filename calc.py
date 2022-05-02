@@ -196,4 +196,14 @@ def interpolate_temps_at(df: pd.DataFrame):
               'Tp_midarc': early_midarc_wt*snap.iloc[4] + (1-early_latearc_wt)*snap.iloc[5]})
     return(interp)
 
+def Z_score_from_interpolation(interp: pd.DataFrame):
+    """
+    infers Z-scores from interpolated temperatures at 3 timesteps (columns): Tp_phanero, Tp_latearc, Tp_midarc
+    """
+    Zscores = pd.DataFrame()
+    for i in interp.columns:
+        Zscores[i] = (interp[i] - A94[i].mu)/A94[i].sig
+        Zscores[i].fillna(np.inf, inplace=True)
+    Zscores['RMSE'] = ((Zscores**2).T.sum())**0.5
+    return(Zscores)
 
