@@ -25,8 +25,8 @@ plt.rcParams['font.sans-serif'] = 'Arial'
 # In[ ]:
 
 
-nruns = 100
-b = -0.09
+nruns = 500
+b = -0.07
 startTs = pd.read_csv('CorrectedTpPresent.csv', header=0) #best-fit-to-Phanero present Tp's for each beta
 estimate_start_Tp = interpolate.interp1d(x=startTs.b0, y=startTs.Tp_AbbottMatch) #(assuming RK18 curve)
 timestep, GrowthCurves, times, timerange = generate_time_evolution(4.0)
@@ -58,9 +58,10 @@ for param in to_vary:
     cases = pd.DataFrame(cases).drop_duplicates()
     cases['Tp'] = estimate_start_Tp(b) + cases['Tp_uncert']
     scenarios[param] = evolve_model_onebeta(b, mantle_HP, cases)
+    print(param, ' done')
 
 
-# #### Sensitivity test part I: statistical variation in $H(t)$
+# #### Sensitivity test part II: statistical variation in $H(t)$
 
 # In[ ]:
 
@@ -81,6 +82,7 @@ for param in to_vary:
     cases = pd.DataFrame(cases).drop_duplicates()
     cases['Tp'] = estimate_start_Tp(b) + cases['Tp_uncert']
     scenarios[param] = evolve_model_onebeta(b, mantle_HP, cases)
+print(param, ' done')
 
 
 # ### Get summary statistics for these
@@ -88,13 +90,14 @@ for param in to_vary:
 # In[ ]:
 
 
-growthcurve = 'RK18'
+growthcurve = 'C03'
 summary_stats = {}
 nxn=2.5
 a=0.2
 npanels = len(scenarios.keys())
 for name, curves in scenarios.items():
     summary_stats[name] = curves[growthcurve].T.quantile(percentiles).T #scenarios[name]['C03_stats']
+    summary_stats[name].to_csv(targetfolder+'/'+growthcurve+'_'+name+'.csv')
 
 
 # ### Plot RMSE Z-scores against their trajectory ensembles
@@ -106,7 +109,7 @@ for name, curves in scenarios.items():
 nxn = 2.1
 fig, ax = plt.subplots(2, npanels, figsize=(nxn*0.9*npanels, 2*nxn))
 n=0
-c='r'
+c='b'
 Zs = {}
 boxno = 'ABCD'
 for name, s in summary_stats.items():
@@ -138,7 +141,7 @@ for i, thing in scenarios.items():
     for curve, df in thing.items():
         Zs[i][curve] = Z_scores(df)
         if curve==growthcurve:
-            Zs[i][curve]['RMSE'].plot.kde(ax=ax[1][n], xlim=(0,3), ylim=(0,3.7), label=i+' '+curve, c=c)
+            Zs[i][curve]['RMSE'].plot.kde(ax=ax[1][n], xlim=(0,3), ylim=(0,5), label=i+' '+curve, c=c)
             ax[1][n].set_xlabel('Z-score')
             ax[1][n].set_ylabel(ylabel)
             #ax[n].text(s=str_i, x=2.3, y=-1.75) #.25)
@@ -157,7 +160,7 @@ plt.savefig(targetfolder+'/'+growthcurve+'scenarios_test_scores_COMBINED_RMSE_Ea
 
 
 nxn = 2.1
-c='r'
+c='b'
 fig, ax = plt.subplots(2, npanels, figsize=(nxn*0.9*npanels, 2*nxn))
 n=0
 boxno = 'ABCD'
@@ -189,7 +192,7 @@ for i, thing in scenarios.items():
     for curve, df in thing.items():
         Zs[i][curve] = Z_scores(df)
         if curve=='C03':
-            Zs[i][curve]['RMSE'].plot.kde(ax=ax[1][n], xlim=(0,3), ylim=(0,3.7), label=i+' '+curve, c=c)
+            Zs[i][curve]['RMSE'].plot.kde(ax=ax[1][n], xlim=(0,3), ylim=(0,5), label=i+' '+curve, c=c)
             ax[1][n].set_ylabel(ylabel)
             ax[1][n].text(s=boxno[n], x=0.15, y=3.2)
             n=n+1
@@ -204,7 +207,6 @@ plt.savefig(targetfolder+'/'+growthcurve+'_scenarios_test_scores_noxlabels_COMBI
 # In[ ]:
 
 
-model = 'C03'
 tol=1.0e-15
 betas = np.round(np.arange(-0.15, 0.3+tol, 0.01), 2)
 betas = ([[i, j] for i in betas for j in betas])
@@ -215,7 +217,7 @@ scenarios = pd.DataFrame({'b0': b0s, 'b1': b1s, 'Tp': Tps})
 results = dict(zip(chgts, len(chgts)*[None]))
 every = 5
 Ea, Qt = pars['Ea'].mu, pars['Qtot'].mu - HPE_budgets1[4].iat[0,0]
-crustfrac = GrowthCurves[model]
+crustfrac = GrowthCurves[growthcurve]
 HP = (HPE_budgets1[3] - (HPE_budgets1[4].mul(crustfrac, axis=0)).dropna()).T.drop_duplicates().T[0]
 summary = dict()
 for chgt in results.keys():
@@ -228,6 +230,7 @@ for chgt in results.keys():
     Zs = Z_score_from_interpolation(interp)
     summary[chgt] = pd.concat([scenarios, interp, Zs], axis=1)
     summary[chgt] = summary[chgt].replace(np.nan, np.inf)
+    summary[chgt].to_csv(targetfolder+'/'+str(chgt)+growthcurve+'b0b1.csv')
 
 
 # ### Plot these cases' fit with respect to Abbott et al 1994
@@ -235,6 +238,9 @@ for chgt in results.keys():
 # In[ ]:
 
 
+subplotno = [[0,0],[0,1],#[0,2],
+             [1,0],[1,1]]#,#[1,2],
+             #[2,0],[2,1],[2,2]]
 n=0
 panels='ABCDEFGHI'
 ticks = np.arange(-0.15, 0.3+tol, 0.05)
@@ -266,7 +272,7 @@ plt.subplots_adjust(wspace=0.15, hspace=0.15)
 cb_ax = fig.add_axes([1.0, 0.05, 0.05, 0.9])
 cbar = fig.colorbar(im, cax=cb_ax)
 
-plt.savefig(targetfolder+'/'+model+'_stats.pdf')
+plt.savefig(targetfolder+'/'+growthcurve+'_stats.pdf')
 
 
 # ### How does this map to odds ratio WRT ideal case?
@@ -309,5 +315,5 @@ plt.tight_layout()
 plt.subplots_adjust(wspace=0.15, hspace=0.15)
 cb_ax = fig.add_axes([1.0, 0.05, 0.05, 0.9])
 cbar = fig.colorbar(im, cax=cb_ax)
-plt.savefig(targetfolder+'/'+model+'_odds_stats.pdf')
+plt.savefig(targetfolder+'/'+growthcurve+'_odds_stats.pdf')
 
