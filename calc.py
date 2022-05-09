@@ -217,3 +217,18 @@ def Z_score_from_interpolation(interp: pd.DataFrame):
     Zscores.columns = Zscores.columns.str.replace('Tp_', 'Z_{')+'}'
     return(Zscores)
 
+def fast_median_HPE_budget(df):
+    """
+    Calculates median heat budget
+    :df: GrowthCurves dataframe with desired timestepping interval
+    """
+    Isos = pd.read_csv('HPEs.csv', header=0, index_col=0)
+    Isos['BSE_Mean_TW'] = Isos['Xbse_Elem_Mean']*Isos['IsoFrac']*Isos['PowerPerKg']*(M_mant+M_crus)*1.0e-12
+    Isos['Crust_Mean_TW'] = Isos['Xcr_Elem_Mean']*Isos['IsoFrac']*Isos['PowerPerKg']*(M_crus)*1.0e-12
+    BSE_iso_history = (pd.DataFrame(dict(zip(df.index, [Isos.BSE_Mean_TW * np.exp(Isos.Lambda*i) for i in df.index])))).T
+    crust_iso_history = (pd.DataFrame(dict(zip(df.index, [Isos.Crust_Mean_TW * np.exp(Isos.Lambda*i) for i in df.index])))).T
+    budget = pd.DataFrame({'BSE': BSE_iso_history.T.sum().values, 'crust': crust_iso_history.T.sum().values}, index=df.index)
+    crust_to_subtract = df.mul(budget.crust, axis='index')
+    budget = pd.concat([budget, (-1*crust_to_subtract).add(budget.BSE, axis='index')], axis=1)
+    budget.index = np.round(budget.index,3)
+    return(budget)
