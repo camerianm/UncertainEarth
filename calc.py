@@ -57,6 +57,7 @@ def Z_scores(df):
     Zs['RMSE'] = (((Zs**2).T.sum())/3)**0.5
     return(Zs)
 
+
 def plot_gaussian_target(ax):
     fc = ['black', 'dimgray', 'darkgray', 'lightgray'] #['black', 'gold', 'crimson', 'dodgerblue']
     alpha = 0.5
@@ -82,6 +83,16 @@ def growth_models(timestep : float):
     GrowthCurves.index = np.round(GrowthCurves.index, decimals)
     times = np.arange(0, 4.5+timestep, timestep).round(decimals)
     return(GrowthCurves.loc[times])
+
+def interpolate_growth_curve(timestep, tmax):
+    curves = pd.read_csv('GrowthCurves.csv', header=0, index_col=0)
+    times = np.arange(0,tmax+timestep,timestep)
+    crustal_fraction = pd.DataFrame(index=times)
+    for curve in curves:
+        get_fraction = interpolate.interp1d(x=curves.index.to_numpy(), 
+                        y=curves[curve].values, kind='linear')
+        crustal_fraction[curve] = get_fraction(times)
+    return(crustal_fraction)
 
 def generate_time_evolution(tmax_Ga: float):
     """
