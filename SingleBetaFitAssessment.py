@@ -4,7 +4,7 @@
 # In[ ]:
 
 
-targetfolder = '0502'
+targetfolder = '0509'
 import os
 if not os.path.exists(targetfolder): 
     os.mkdir(targetfolder)
@@ -21,106 +21,88 @@ startTs = pd.read_csv('CorrectedTpPresent.csv', header=0) #best-fit-to-Phanero p
 estimate_start_Tp = interpolate.interp1d(x=startTs.b0, y=startTs.Tp_AbbottMatch) #(assuming RK18 curve)
 nruns=1
 pars = generate_parameters(nruns)
+tol=1.0e-15
 
 
 # In[ ]:
 
 
-growthcurve = 'C03'
-timestep, GrowthCurves, times, timerange = generate_time_evolution(4.0)
-tmax = timerange[-1]
-HPE_budgets = strict_median_heat_budget(nruns, timestep, [0.0, tmax])
-tol=1.0e-15
-b0s = np.round(np.arange(-0.15, 0.3+tol, 0.001), 4)
-Tps = estimate_start_Tp(b0s)
-every = 1
-Ea, Qt = pars['Ea'].mu, pars['Qtot'].mu - HPE_budgets[4].iat[0,0]
-crustfrac = GrowthCurves[growthcurve]
-HP = (HPE_budgets[3] - (HPE_budgets[4].mul(crustfrac, axis=0)).dropna()).T.drop_duplicates().T[0]
-results = dict()
+tmax = 4.0
+timestep = 0.001
+GrowthCurves = interpolate_growth_curve(timestep, tmax)
+GrowthCurves.index = np.round(GrowthCurves.index, 3)
+HPhistories = fast_median_HPE_budget(GrowthCurves)
+b0s = np.round(np.arange(-0.15, 0.05+tol, 0.001), 3) #rounding=essential
+Tps = dict(zip(b0s, estimate_start_Tp(b0s)))
+midpoints = (HPhistories+(HPhistories.diff()*0.5).iloc[1:].set_index(HPhistories.index[:-1])).dropna()
+Ea, Qt = pars['Ea'].mu, pars['Qtot'].mu - midpoints.crust[0]
+curves, statistics = {}, {}
+
+
+# In[ ]:
+
+
+curve = 'C03'
+curves[curve] = {}
 for ct, b in enumerate(b0s):
-    results[b] = fast_evolve_singlemodel_twobeta(b0=b, b1=b, chgt=5.0, 
-                            Tp=Tps[ct], Ea=Ea, Qt=Qt, HP=HP, every=every)
-results = pd.DataFrame(results)
-scores = Z_scores(results)
-scores['LAE'] = np.abs(scores[scores.columns[0:3]]).T.mean()
+    curves[curve][b] = fast_evolve_singlemodel_twobeta(b0=b, b1=b, chgt=5.0, 
+                 Tp=Tps[b], Ea=Ea, Qt=Qt, HP=midpoints[curve])
+curves[curve] = pd.DataFrame(curves[curve], index=midpoints.index)
+scores = Z_scores(curves[curve])
+scores['LAE'] = scores.iloc[:,0:3].abs().T.mean()
 odds = scores.apply(stats.norm.pdf)/(stats.norm.pdf(0))
 odds.columns = odds.columns+' odds'
-C03_summary = copy(pd.concat([scores[['RMSE', 'LAE']], odds[['RMSE odds', 'LAE odds']]], axis=1))
+statistics[curve] = pd.concat([scores, odds], axis=1)
 
 
 # In[ ]:
 
 
-growthcurve = 'RK18'
-timestep, GrowthCurves, times, timerange = generate_time_evolution(4.0)
-tmax = timerange[-1]
-HPE_budgets = strict_median_heat_budget(nruns, timestep, [0.0, tmax])
-tol=1.0e-15
-b0s = b0s
-Tps = estimate_start_Tp(b0s)
-every = 1
-Ea, Qt = pars['Ea'].mu, pars['Qtot'].mu - HPE_budgets[4].iat[0,0]
-crustfrac = GrowthCurves[growthcurve]
-HP = (HPE_budgets[3] - (HPE_budgets[4].mul(crustfrac, axis=0)).dropna()).T.drop_duplicates().T[0]
-results2 = dict()
+curve = 'RK18'
+curves[curve] = {}
 for ct, b in enumerate(b0s):
-    results2[b] = fast_evolve_singlemodel_twobeta(b0=b, b1=b, chgt=5.0, 
-                            Tp=Tps[ct], Ea=Ea, Qt=Qt, HP=HP, every=every)
-results2 = pd.DataFrame(results2)
-scores = Z_scores(results2)
-scores['LAE'] = np.abs(scores[scores.columns[0:3]]).T.mean()
+    curves[curve][b] = fast_evolve_singlemodel_twobeta(b0=b, b1=b, chgt=5.0, 
+                 Tp=Tps[b], Ea=Ea, Qt=Qt, HP=midpoints[curve])
+curves[curve] = pd.DataFrame(curves[curve], index=midpoints.index)
+scores = Z_scores(curves[curve])
+scores['LAE'] = scores.iloc[:,0:3].abs().T.mean()
 odds = scores.apply(stats.norm.pdf)/(stats.norm.pdf(0))
 odds.columns = odds.columns+' odds'
-RK18_summary = copy(pd.concat([scores[['RMSE', 'LAE']], odds[['RMSE odds', 'LAE odds']]], axis=1))
+statistics[curve] = pd.concat([scores, odds], axis=1)
 
 
 # In[ ]:
 
 
-best_C03_RMSE = C03_summary.RMSE.sort_values().index[0]
-best_C03_LAE = C03_summary.LAE.sort_values().index[0]
-best_RK18_RMSE = RK18_summary.RMSE.sort_values().index[0]
-best_RK18_LAE = RK18_summary.LAE.sort_values().index[0]
+[curves[i].to_csv(targetfolder+'/trajects_for_betas_'+i+'.csv') for i in curves]
+[statistics[i].to_csv(targetfolder+'/stats_for_betas_'+i+'.csv') for i in statistics]
 
 
 # In[ ]:
 
 
-best_RK18 = results2[[best_RK18_RMSE, best_RK18_LAE]]
-best_RK18.columns = [' RMSE', ' LAE']
-best_C03 = results[[best_C03_RMSE, best_C03_LAE]]
-best_C03.columns = [' RMSE', ' LAE']
-best_runs = {'C03': best_C03, 'RK18': best_RK18}
-
+nxn=2.9
 fig, ax = plt.subplot_mosaic([['upper left', 'right'],
                                ['lower left', 'right']],
-                              figsize=(nxn*2.4, nxn*1.2), constrained_layout=True)
-summaries = {'RK18': RK18_summary, 'C03': C03_summary}
+                              figsize=(nxn*2.1, nxn*1.3), constrained_layout=True)
+upper, lower, side = ax['upper left'], ax['lower left'], ax['right']
 c = {'RK18': 'r', 'C03': 'b'}
-nxn=2.9
-#fig, ax = plt.subplots(2,1, figsize=(nxn, nxn*2), sharex=True)
-n=0
-for curve in summaries.keys():
-    summaries[curve]['RMSE'].plot(ylim=(0,4), xlim=(-0.15,0.05), label=curve+' RMSE', ax=ax['upper left'], ylabel='Z-score', c=c[curve])
-    summaries[curve]['LAE'].plot(ylim=(0,4), xlim=(-0.15,0.05), label=curve+' LAE', ax=ax['upper left'], ylabel='Z-score', c=c[curve], ls='dotted')
-    #ax['upper left'].legend()
-    ax['upper left'].set_xticks([])
-    summaries[curve]['RMSE odds'].plot(ylim=(0,4), xlim=(-0.15,0.05), label=curve+' RMSE', ax=ax['lower left'], ylabel='Odds Ratio', xlabel=r'$\beta$', c=c[curve])
-    summaries[curve]['LAE odds'].plot(ylim=(0,1), xlim=(-0.15,0.05), label=curve+' LAE', ax=ax['lower left'], ylabel='Odds Ratio', c=c[curve], ls='dotted')
-    best_runs[curve][' RMSE'].plot(ax=ax['right'], label=curve+' RMSE', c=c[curve], ylabel=r'Mantle $T_p$ (K)')
-    best_runs[curve][' LAE'].plot(ax=ax['right'], label=curve+' LAE', c=c[curve], ls='dotted', xlabel='Time (Ga)')
-    ax['right'].legend(loc='upper left')
-    plot_gaussian_target(ax['right'])
-    ax['right'].yaxis.tick_right()
-    ax['right'].yaxis.set_label_position('right')
-
+for curve in curves:
+    statistics[curve]['RMSE'].plot(ax=upper, c=c[curve], ylim=(0,4), ylabel='Z-score',  xlim=(-0.15,0.05))
+    statistics[curve]['RMSE odds'].plot(ax=lower, c=c[curve], ylabel='Odds Ratio', ylim=(0,1), xlim=(-0.15,0.05))
+    best = curves[curve][statistics[curve].RMSE.idxmin()]
+    best.plot(ax=side, c=c[curve], ylabel=r'Mantle $T_p$ (K)', xlabel='Time (Ga)', label=curve+r', $\beta$ = '+str(best.name))
+    upper.text(x=0.04, y=0.9*4, s='a'), lower.text(x=0.04, y=0.9, s='b'), side.text(x=3.8, y=2080, s='c')
+    upper.set_xticks([]), lower.set_xlabel(r'$\beta$')
+    side.yaxis.tick_right(), side.yaxis.set_label_position('right')
+    upper.axvline(0, lw=0.5, ls='dotted', c='grey'), lower.axvline(0, lw=0.5, ls='dotted', c='grey')
+plot_gaussian_target(side)
+side.legend(loc='upper left')
 plt.savefig(targetfolder+'/'+'odds_and_trajects.pdf')
 
 
 # In[ ]:
 
 
-results.to_csv(targetfolder+'/trajects_for_betas_C03.csv')
-results2.to_csv(targetfolder+'/trajects_for_betas_RK18.csv')
+
 
