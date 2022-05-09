@@ -45,7 +45,10 @@ def Abbott(nruns: int):     # Abbott et al 1994
 A94 = Abbott(3)
 def Z_scores(df):
     times = [A94['t_phanero'].mu, A94['t_latearc'].mu, A94['t_midarc'].mu]
-    temps = df.loc[times].T
+    try:
+        temps = df.loc[times].T
+    except:
+        temps = interpolate_temps_at(df)
     temps.columns = ['Tp_phanero', 'Tp_latearc', 'Tp_midarc']
     Zs = pd.DataFrame(index=temps.index)
     for i in temps.columns:
