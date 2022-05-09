@@ -232,3 +232,25 @@ def fast_median_HPE_budget(df):
     budget = pd.concat([budget, (-1*crust_to_subtract).add(budget.BSE, axis='index')], axis=1)
     budget.index = np.round(budget.index,3)
     return(budget)
+
+def generate_HP_distributions(nruns, Curves):
+    Isos = pd.read_csv('HPEs.csv', header=0, index_col=0)
+    CrustMult = 1.0e-12*Isos.PowerPerKg*Isos.IsoFrac*M_crus
+    BSEMult = 1.0e-12*Isos.PowerPerKg*Isos.IsoFrac*(M_crus+M_mant)
+    CrustDist = pd.DataFrame(dict(zip(Isos.index, [mu_sig(nruns, Isos.Xcr_Elem_Mean.iloc[i], 
+            Isos.Xcr_Elem_Std.iloc[i]).dist for i in [0,1,2,3]]))).mul(CrustMult)
+    BSEDist = pd.DataFrame(dict(zip(Isos.index, [mu_sig(nruns, Isos.Xbse_Elem_Mean.iloc[i],
+            Isos.Xbse_Elem_Std.iloc[i]).dist for i in [0,1,2,3]]))).mul(BSEMult)
+    BSEHP, CrustHP = pd.DataFrame(), pd.DataFrame()
+    for t in Curves.index:
+        BSEHP[t] = (BSEDist * np.exp(Isos.Lambda*t)).T.sum()
+        CrustHP[t] = (CrustDist * np.exp(Isos.Lambda*t)).T.sum()
+    BSEHP, CrustHP = BSEHP.T, CrustHP.T
+    RK18 = BSEHP - CrustHP.mul(Curves.RK18, axis=0)
+    C03 = BSEHP - CrustHP.mul(Curves.C03, axis=0)
+    instantaneous = {'BSE': BSEHP, 'Crust': CrustHP, 'RK18': RK18, 'C03': C03}
+    midpoints = {}
+    for i, df in instantaneous.items():
+        midpoints[i] = (df + 0.5 * df.diff().shift(periods=-1)).dropna()
+    return({'instantaneous': instantaneous, 'midpoints': midpoints})
+
