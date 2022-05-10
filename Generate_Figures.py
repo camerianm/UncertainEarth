@@ -2,6 +2,10 @@
 # coding: utf-8
 
 # ### Import modules
+
+# In[ ]:
+
+
 import numpy as np
 import pandas as pd
 import os
@@ -15,6 +19,10 @@ plt.rcParams['font.sans-serif'] = 'Arial'
 
 
 # ### Net crustal growth curves
+
+# In[ ]:
+
+
 nxn = 2.9
 GrowthCurves = pd.read_csv('GrowthCurves.csv', header=0, index_col=0)
 GrowthCurves.columns = GrowthCurves.columns.map(Curves)
@@ -26,6 +34,10 @@ plt.savefig('OUTPUT/GrowthModels.pdf')
 
 
 # ### Mantle heat-production implications from crustal growth
+
+# In[ ]:
+
+
 timestep, GrowthCurves, times, timerange = generate_time_evolution(tmax)
 HPE_budgets = generate_HPE_budgets(1000, timestep, [0.0, tmax])
 mHP = {}
@@ -50,9 +62,14 @@ plt.savefig('OUTPUT/GrowthModels_to_HeatProduction.pdf')
 
 
 # ### Sample: mean cooling pathways
+
+# In[ ]:
+
+
 trajectories = pd.read_csv('OUTPUT/Sample_Trajectories_reduced.csv', header=0, index_col=0)
 trajectories.columns = trajectories.columns.str.replace('Beta',  'β')
-fig, ax = plt.subplots(figsize=(2*nxn, nxn))
+trajectories = trajectories[trajectories.columns[::-1]]
+fig, ax = plt.subplots(figsize=(nxn, nxn))
 trajectories.plot(xlim=(0,4), ax=ax, xlabel='Time (Ga)', ylabel=r'Mantle $T_p$ (K)')
 plot_gaussian_target(ax)
 plt.tight_layout()
@@ -60,49 +77,48 @@ plt.savefig('OUTPUT/C03_beta_single_comparison.pdf')
 
 
 # ### Compare possible scaling-law transitions
-RK18 = pd.read_csv('OUTPUT/RK18_reduced.csv', header=0, index_col=0).sort_values(by=['b1', 'b0'], ascending=False)
-RK18groups = RK18.groupby(by='chgt')
-fig, ax = plt.subplots(2,4, figsize=(nxn*2.1,nxn*1.2))
-xt = np.linspace(-0.15, 0.3, 10)
-panelno = ['ABCD','EFGH']
-n, row = 0, 0
-for i, group in RK18groups:
-    if i in [0.5, 0.8, 1.1, 1.4]:
-            if n>0:
-                xticks = xt[1:]
-            else: xticks=xt
-            group.plot(kind='scatter', s=5, marker='s', edgecolors='none', x='b0', y='b1', sharex=True, sharey=True,
-                       c='ZRMSE', xticks=xticks, xlabel=None, ylabel=r'Past $\beta$', ax=ax[row][n],
-                       colorbar=False, yticks=xt, rot=0, cmap='gist_stern', vmin=0, vmax=4, xlim=(xt[0], xt[-1]), ylim=(xt[0], xt[-1]))
-            ax[row][n].set_aspect('equal')
-            ax[row][n].set_title(str(i)+' Ga', pad=1)
-            ax[row][n].text(s=panelno[row][n], y=0.22, x=0.22)
-            n=n+1
-C03 = pd.read_csv('OUTPUT/C03_reduced.csv', header=0, index_col=0).sort_values(by=['b1', 'b0'], ascending=False)
-C03groups = C03.groupby(by='chgt')                
-n, row = 0, 1
-for i, group in C03groups:
-    if i in [0.5, 0.8, 1.1, 1.4]:
-            if n>0:
-                xticks = xt[1:]
-            else: xticks=xt
-            group.plot(kind='scatter', s=5, marker='s', edgecolors='none', x='b0', y='b1', sharex=True, sharey=True,
-                       c='ZRMSE', xticks=xticks, xlabel=r'Present $\beta$', ylabel=r'Past $\beta$', ax=ax[row][n],
-                       colorbar=False, yticks=xt[:-1], rot=90, cmap='gist_stern', vmin=0, vmax=4, xlim=(xt[0], xt[-1]), ylim=(xt[0], xt[-1]))
-            ax[row][n].set_aspect('equal')
-            ax[row][n].text(s=panelno[row][n], y=0.22, x=0.22)
-            n=n+1            
-plt.tight_layout()
-plt.subplots_adjust(wspace=0.0, hspace=0.0)
-plt.savefig('OUTPUT/RK18_C03_ChangeTime_Comparison.pdf')
+
+# In[ ]:
 
 
-# ### And the color bar for this:
-fig, ax = plt.subplots(figsize=(1,2))
-norm = matplotlib.colors.Normalize(vmin=0, vmax=4)
-cmap = matplotlib.cm.gist_stern
-cb1 = matplotlib.colorbar.ColorbarBase(ax, cmap=cmap, norm=norm, orientation='vertical')
-cb1.set_label('RMSE Z-score')
-plt.tight_layout()
-plt.savefig('OUTPUT/RK18_C03_ChangeTime_Comparison_colorbar.pdf')
+C03 = pd.read_csv('OUTPUT/C03_reduced.csv', header=0, index_col=0).sort_values(by=['b1', 'b0'], ascending=False) 
+C03groups = C03.groupby(by='chgt')
+rowcols = sorted(C03.b1.unique())
+
+n=0
+nxn=4
+tol=1.0e-15
+panels='abcd'
+subplotno = [[0,0],[0,1],
+             [1,0],[1,1]]
+ticks = np.arange(-0.15, 0.3+tol, 0.05)
+ticklabels = pd.Series(ticks).round(2).astype(str)
+textloc = dict(zip([0.5, 0.8, 1.1, 1.4], [[0.05,0.85], [0.05,0.85], [0.11, 0.85], [0.24, 0.85]]))
+fig, ax = plt.subplots(2,2, sharex=False, sharey=False, figsize=(nxn,nxn), constrained_layout=True)
+for i, data in C03groups:
+    if i not in textloc.keys():
+        continue
+    else:
+        pivoted = pd.pivot_table(data, values='ZRMSE', index='b0', columns='b1', fill_value=None, dropna=False).T
+        pivoted = pivoted.reindex(index=rowcols, columns=rowcols, fill_value=np.nan).fillna(10)
+        panel = ax[subplotno[n][0]][subplotno[n][1]]
+        im = panel.pcolormesh(pivoted.values, snap=True, vmin=0, vmax=4, cmap='gist_stern', shading='gouraud')
+        panel.set_aspect('equal')
+        if subplotno[n][0]==0: panel.set_xticks([])
+        else: 
+            panel.set_xticks(np.linspace(0,len(pivoted.index), 10))
+            panel.set_xticklabels(ticklabels, rotation=90)
+            panel.set_xlabel(r'$\beta_{present}$')
+        if subplotno[n][1]==1: panel.set_yticks([])
+        else:
+            panel.set_yticks(np.linspace(0,len(pivoted.index), 10))
+            panel.set_yticklabels(ticklabels)
+            panel.set_ylabel(r'$\beta_{past}$')
+        panel.text(x=len(pivoted.columns)*0.85, y=len(pivoted.columns)*0.85, s=panels[n]) #+' (t='+str(i)+')')
+        panel.text(x=len(pivoted.columns)*textloc[i][0], y=len(pivoted.columns)*textloc[i][1], s=r'$t_{\Delta\beta}$='+str(i))
+        n=n+1
+        im.set_edgecolor('none')
+cb_ax = fig.add_axes([1.02, 0.175, 0.05, 0.805])
+plt.colorbar(im, ax=cb_ax, cax=cb_ax)
+plt.savefig('OUTPUT/C03_stats.pdf', bbox_inches='tight')
 
