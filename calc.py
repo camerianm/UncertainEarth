@@ -23,11 +23,10 @@ getodds = lambda Zseries: Zseries.apply(stats.norm.pdf)/(stats.norm.pdf(0))
 
 def generate_parameters(nruns):
     return({'Ea': mu_sig(nruns, 362.0e3, 60.0e3),
-        'Qtot': mu_sig(nruns, 46.7, 1.0)})
+        'Qtot': mu_sig(nruns, 47.0, 1.0)}) #camerian changed, was 46.7pm1
 
 class mu_sig:
     def __init__(self, n: int, mu: float, sig: float):
-        np.random.seed(5)
         self.mu = mu
         self.sig = sig
         self.dist = np.random.normal(self.mu, self.sig, n)
