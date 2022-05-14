@@ -253,3 +253,13 @@ def generate_HP_distributions(nruns, Curves):
         midpoints[i] = (df + 0.5 * df.diff().shift(periods=-1)).dropna()
     return({'instantaneous': instantaneous, 'midpoints': midpoints})
 
+def plot_percentiles_over_time(df, ax, c, name, both:bool):
+    dft = df.T.quantile(percentiles).T
+    col = dft.columns
+    ax.fill_between(y1=dft[col[0]], y2=dft[col[4]], x=dft.index, color=c, alpha=0.1, label=None)
+    if both:
+        ax.fill_between(y1=dft[col[1]], y2=dft[col[3]], x=dft.index, color=c, alpha=0.2, label=None)
+    dft[col[2]].plot(color=c, alpha=1, label=name, ax=ax)
+    plt.xlim(dft.index.min(), dft.index.max())
+    plt.xlabel('Time (Ga)')
+    return(None)
