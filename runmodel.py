@@ -1,39 +1,44 @@
-targetfolder = '0425'
+targetfolder = 'OUTPUT'
 import os
 if not os.path.exists(targetfolder): 
     os.mkdir(targetfolder)
 from calc import *
-import matplotlib.pyplot as plt
 from scipy import interpolate
+from scipy import stats
 import pandas as pd
+tol = 1.0e-15
+import numpy as np
 
-nruns = 10
+nruns = 100
+b = -0.093 #RK18
+model='RK18' #or 'C03'
+tmax, timestep = 4.0, 0.005
+
 startTs = pd.read_csv('CorrectedTpPresent.csv', header=0) #best-fit-to-Phanero present Tp's for each beta
 estimate_start_Tp = interpolate.interp1d(x=startTs.b0, y=startTs.Tp_AbbottMatch) #(assuming RK18 curve)
-timestep, GrowthCurves, times, timerange = generate_time_evolution(4.0)
-tmax = timerange[-1]
-HPE_budgets = strict_median_heat_budget(nruns, timestep, [0.0, tmax]) #or replace w/:generate_HPE_budgets
-mantle_HP = {}
-for curvename, crustfrac in GrowthCurves.items():
-    mantle_HP[curvename] = HPE_budgets[3] - (HPE_budgets[4].mul(crustfrac, axis=0).dropna(how='all'))
+GrowthCurves = interpolate_growth_curve(timestep, tmax)
+GrowthCurves.index = np.round(GrowthCurves.index, 3)
+pars = generate_parameters(nruns)
+HPhistories = generate_HP_distributions(nruns, GrowthCurves)
+HPmodel = HPhistories['midpoints'][model]
+cases = {'Ea': pars['Ea'].dist, 'Qtot': pars['Qtot'].dist,
+         'Qm': (pars['Qtot'].dist - HPhistories['instantaneous']['Crust'].iloc[0]).values,
+         'Tp': estimate_start_Tp(b)+mu_sig(nruns,0,10).dist}
 
-vary_me = ['Ea', 'Tp', 'Qtot']
-cases = {'Tp_uncert': nruns * [0]}
-for name, par in generate_parameters(nruns).items():
-    if name in vary_me: cases[name] = par.dist
-    else: cases[name] = nruns*[par.mu]
-if 'Tp' in vary_me: cases['Tp_uncert'] = mu_sig(nruns, 0, Abbott(3)['Tp_phanero'].sig).dist
-cases['Qm'] = pd.Series(cases['Qtot']) - HPE_budgets[4].iloc[0]
-cases = pd.DataFrame(cases).drop_duplicates()
+trajects = pd.DataFrame(columns=HPmodel.columns, index=HPmodel.index)
+for i in list(range(nruns)):
+    trajects[i] = fast_evolve_singlemodel_twobeta(b0=b, b1=b, chgt=5.0,
+                  Qt=cases['Qm'][i], Ea=cases['Ea'][i], Tp=cases['Tp'][i],
+                   HP=HPmodel[i], every=1)
+interpolated_temps = interpolate_temps_at(df=trajects)
+interpolated_Zs = Z_score_from_interpolation(interpolated_temps)
+interpolated_odds = interpolated_Zs.apply(stats.norm.pdf)/stats.norm.pdf(0)
+trajects_stats = (trajects.T.quantile(percentiles)).T
+trajects_stats.to_csv(targetfolder+'/trajects_'+model+'_'+str(round(b,5))+'.csv')
 
-b = -0.1
-cases['Tp'] = estimate_start_Tp(b) + cases['Tp_uncert']
-batches = evolve_model_onebeta(b, mantle_HP, cases)
+print(model+' '+str(round(b,5))+' done!')
+print('Z-score means:')
+print(interpolated_Zs.median())
+print('Odds ratio means:')
+print(interpolated_odds.median())
 
-#nxn = 2.9 #default matplotlib plot size
-#fig, ax = plt.subplots(figsize=(nxn,nxn))
-#[batches[i].T.mean().plot(legend=False, ax=ax) for i in batches]
-#plot_gaussian_target(ax=ax)
-#plt.tight_layout()
-#plt.savefig(targetfolder+'/test.pdf')
-print('done!')
