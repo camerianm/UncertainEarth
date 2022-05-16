@@ -1,319 +1,271 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# ### Import  modules, make folder
+# Import modules
 
 # In[ ]:
 
 
-targetfolder = '0502'
 import os
-if not os.path.exists(targetfolder): 
-    os.mkdir(targetfolder)
+if not os.path.exists(targetfolder): os.mkdir(targetfolder)
 from calc import *
 import matplotlib.pyplot as plt
 from scipy import interpolate
 from scipy import stats
 import pandas as pd
-import time
+import numpy as np
+from copy import deepcopy
 plt.rcParams['font.size'] = 10.0
 plt.rcParams['font.sans-serif'] = 'Arial'
+tol = 1.0e-15
+c = {'RK18': 'r', 'C03': 'b'}
 
 
-# ### Single $\beta$ case: common parameters
+# Set model parameters
 
 # In[ ]:
 
 
-nruns = 500
-b = -0.07
+# Where should outputs go?
+targetfolder = 'OUTPUT/0515'
+# How many samples in any given random sample?
+nruns = 1000
+# Which crustal growth model to start with?
+curve = 'RK18'
+# How far back in time to run the model, in Ga?
+tmax = 4.0
+# With what timestep resolution, in Ga? (0.005 fast; 0.001 OK)
+timestep = 0.005
+# What raw/processed output to save?
+toprint = {'trajectories': False, 'statistics': True}
+
+
+# Import files from which to interpolate model parameters.
+
+# In[ ]:
+
+
 startTs = pd.read_csv('CorrectedTpPresent.csv', header=0) #best-fit-to-Phanero present Tp's for each beta
 estimate_start_Tp = interpolate.interp1d(x=startTs.b0, y=startTs.Tp_AbbottMatch) #(assuming RK18 curve)
-timestep, GrowthCurves, times, timerange = generate_time_evolution(4.0)
-tmax = timerange[-1]
-HPE_budgets1 = strict_median_heat_budget(nruns, timestep, [0.0, tmax]) #or replace w/:generate_HPE_budgets
-HPE_budgets2 = generate_HPE_budgets(nruns, timestep, [0.0, tmax]) #or replace w/:generate_HPE_budgets
-
-
-# #### Sensitivity test part I: statistical variation in $E_A$, $T_p$, $Q_{total}$ without $H(t)$ variation
-
-# In[ ]:
-
-
-HPE_budgets = HPE_budgets1
+GrowthCurves = interpolate_growth_curve(timestep, tmax)
+GrowthCurves.index = np.round(GrowthCurves.index, 3)
 pars = generate_parameters(nruns)
-mantle_HP = {}
-for curvename, crustfrac in GrowthCurves.items():
-    mantle_HP[curvename] = HPE_budgets[3] - (HPE_budgets[4].mul(crustfrac, axis=0).dropna(how='all'))
-to_vary = ['Ea', 'Qtot', 'Tp']
-scenarios = {}
-for param in to_vary:
-    vary_me = [param]# ['Ea', 'Tp', 'Qtot']
-    cases = {'Tp_uncert': nruns * [0]}
-    for name, par in pars.items():
-        if name in vary_me: cases[name] = par.dist
-        else: cases[name] = nruns*[par.mu]
-    if 'Tp' in vary_me: cases['Tp_uncert'] = mu_sig(nruns, 0, Abbott(3)['Tp_phanero'].sig).dist
-    cases['Qm'] = pd.Series(cases['Qtot']) - HPE_budgets[4].iloc[0]
-    cases = pd.DataFrame(cases).drop_duplicates()
-    cases['Tp'] = estimate_start_Tp(b) + cases['Tp_uncert']
-    scenarios[param] = evolve_model_onebeta(b, mantle_HP, cases)
-    print(param, ' done')
 
 
-# #### Sensitivity test part II: statistical variation in $H(t)$
+# First, which $\beta$ fits best assuming NO uncertainty?
 
 # In[ ]:
 
 
-HPE_budgets = HPE_budgets2
-mantle_HP = {}
-for curvename, crustfrac in GrowthCurves.items():
-    mantle_HP[curvename] = HPE_budgets[3] - (HPE_budgets[4].mul(crustfrac, axis=0).dropna(how='all'))
-to_vary = ['Ht']
-for param in to_vary:
-    vary_me = [param]# ['Ea', 'Tp', 'Qtot']
-    cases = {'Tp_uncert': nruns * [0]}
-    for name, par in generate_parameters(nruns).items():
-        if name in vary_me: cases[name] = par.dist
-        else: cases[name] = nruns*[par.mu]
-    if 'Tp' in vary_me: cases['Tp_uncert'] = mu_sig(nruns, 0, Abbott(3)['Tp_phanero'].sig).dist
-    cases['Qm'] = pd.Series(cases['Qtot']) - HPE_budgets[4].iloc[0]
-    cases = pd.DataFrame(cases).drop_duplicates()
-    cases['Tp'] = estimate_start_Tp(b) + cases['Tp_uncert']
-    scenarios[param] = evolve_model_onebeta(b, mantle_HP, cases)
-print(param, ' done')
+# Heat production from published means
+HPhistory = fast_median_HPE_budget(GrowthCurves)
+# Midpoint method used for time integration of heat production
+midpoints = (HPhistory+(HPhistory.diff()*0.5).iloc[1:].set_index(HPhistory.index[:-1])).dropna()
+# Between midpoints and instantaneous... which to use?
+HPtouse = midpoints
+# Establish beta range to test
+b0s = np.round(np.arange(-0.15, 0.05+tol, 0.001), 3)
+# ID starting temperatures which produce best phanerozoic results for each beta
+Tps = dict(zip(b0s, estimate_start_Tp(b0s)))
+# Assume mean values of other model parameters
+Ea, Qt = pars['Ea'].mu, pars['Qtot'].mu - HPhistory.crust[0]
+# Get ready to receive model outputs
+curves, statistics = {curve: pd.DataFrame(index=HPtouse.index)}, {curve: None}
 
+for ct, b in enumerate(b0s):
+    curves[curve][b] = fast_evolve_singlemodel_twobeta(b0=b, b1=b, chgt=5.0, 
+                 Tp=Tps[b], Ea=Ea, Qt=Qt, HP=HPtouse[curve])
 
-# ### Get summary statistics for these
+scores = Z_scores(curves[curve])
+odds = scores.apply(stats.norm.pdf)/(stats.norm.pdf(0))
+odds.columns = odds.columns+' odds'
+statistics[curve] = deepcopy(pd.concat([scores, odds], axis=1))
+print('Best-fitting beta:', statistics[curve]['RMSE'].idxmin())
+print('Highest beta within 95%CI:', statistics[curve][statistics[curve].RMSE<2].index[-1])
+
 
 # In[ ]:
 
 
-growthcurve = 'C03'
-summary_stats = {}
-nxn=2.5
-a=0.2
-npanels = len(scenarios.keys())
-for name, curves in scenarios.items():
-    summary_stats[name] = curves[growthcurve].T.quantile(percentiles).T #scenarios[name]['C03_stats']
-    summary_stats[name].to_csv(targetfolder+'/'+growthcurve+'_'+name+'.csv')
+del scores
+del odds
+if toprint['trajectories']:
+    curves[curve].to_csv(targetfolder+'/beta_mean_trajectories_'+curve+'.csv')
+if toprint['statistics']: 
+    curves[curve].to_csv(targetfolder+'/beta_mean_statistics_'+curve+'.csv')
+try: [print(i) for i in os.listdir(targetfolder) if '.csv' in i]
+except: pass
 
 
-# ### Plot RMSE Z-scores against their trajectory ensembles
-# #### Plot with axis labels
+# Now, consider uncertainties in each model parameter, using that ideal beta.
 
 # In[ ]:
 
 
-nxn = 2.1
-fig, ax = plt.subplots(2, npanels, figsize=(nxn*0.9*npanels, 2*nxn))
+Tps = dict(zip(b0s, estimate_start_Tp(b0s)))
+b = statistics[curve]['RMSE'].idxmin()
+Tp_mu = Tps[b]
+Tps = Tp_mu+mu_sig(nruns,0,10).dist
+Qms = pars['Qtot'].dist - HPhistory.crust[0]
+ensemble_df = pd.DataFrame(index=HPtouse.index, columns=list(range(nruns)))
+ensembles = {'Tp': deepcopy(ensemble_df),
+            'Ea': deepcopy(ensemble_df),
+            'Qtot': deepcopy(ensemble_df),
+            'Ht': deepcopy(ensemble_df)}
+
+for n, Tp_vary in enumerate(Tps):
+    ensembles['Tp'][n] = fast_evolve_singlemodel_twobeta(b0=b, b1=b, chgt=5.0, 
+                 Tp=Tp_vary, Ea=pars['Ea'].mu, Qt=Qt, HP=HPtouse[curve])
+for n, Ea_vary in enumerate(pars['Ea'].dist):
+    ensembles['Ea'][n] = fast_evolve_singlemodel_twobeta(b0=b, b1=b, chgt=5.0, 
+                 Tp=Tp_mu, Ea=Ea_vary, Qt=Qt, HP=HPtouse[curve])
+for n, Qt in enumerate(Qms):
+    ensembles['Qtot'][n] = fast_evolve_singlemodel_twobeta(b0=b, b1=b, chgt=5.0, 
+                 Tp=Tp_mu, Ea=pars['Ea'].mu, Qt=Qt, HP=HPtouse[curve])
+
+HPhistories = generate_HP_distributions(nruns, GrowthCurves)
+HP_mantle = HPhistories['midpoints'][curve]
+HP_crust = HPhistories['instantaneous']['Crust'].iloc[0]
+Qms_from_Ht = pars['Qtot'].mu - HP_crust
+for n, HP in HP_mantle.items():
+    ensembles['Ht'][n] = fast_evolve_singlemodel_twobeta(b0=b, b1=b, chgt=5.0, 
+                 Tp=Tp_mu, Ea=pars['Ea'].mu, Qt=Qms_from_Ht[n], HP=HP)
+
+ensemble_statistics = {}
+for param, df in ensembles.items():
+    scores = Z_scores(df)
+    odds = scores.apply(stats.norm.pdf)/(stats.norm.pdf(0))
+    odds.columns = odds.columns+' odds'
+    ensemble_statistics[param] = deepcopy(pd.concat([scores, odds], axis=1))
+
+for param, df in ensembles.items():
+    if toprint['trajectories']: df.to_csv(targetfolder+'/trajectories_'+curve+'_'+param+'_'+str(b)+'.csv')
+    if toprint['statistics']: df.to_csv(targetfolder+'/statistics_'+curve+'_'+param+'_'+str(b)+'.csv')
+
+try: [print(i) for i in os.listdir(targetfolder) if '.csv' in i]
+except: pass
+
+
+# Visualize these distributions.
+
+# In[ ]:
+
+
+fig, ax = plt.subplots(2,4, figsize=(10,5), sharey='row', sharex=False, tight_layout=True)
+row0, row1, label0, label1 = ax[0], ax[1], 'abcd', 'efgh'
+bins=np.arange(0,1,0.05)
+row0[0].set_ylabel(r'Mantle T$_p$'), row0[0].set_yticks([1600,1700,1800,1900,2000,2100])
+#row0[n].set_xlabel('Time (Ga)'), 
+for n, i in enumerate(['Tp', 'Ea', 'Qtot', 'Ht']):
+    estats = ensembles[i].T.quantile(percentiles).T
+    lines = estats.values.transpose()
+    row0[n].fill_between(x=estats.index, y1=lines[0], 
+                       y2=lines[-1], color=c[curve], alpha=0.1)
+    row0[n].fill_between(x=estats.index, y1=lines[1], 
+                       y2=lines[-2], color=c[curve], alpha=0.2)
+    estats[estats.columns[2]].plot(ax=row0[n], c=c[curve])
+    plot_gaussian_target(row0[n])
+    row0[n].text(x=3.7,y=2050,s=label0[n], fontsize=12)
+    row1[n].text(x=0.92,y=510,s=label1[n], fontsize=12) 
+    ensemble_statistics[i]['RMSE odds'].plot.hist(ec='w', ax=row1[n], bins=bins, color=c[curve])
+    row0[n].set_xlabel('Time (Ga)')
+
+for i in row1:
+    i.set_xlabel('Odds Ratio')
+    i.set_xticks([0,0.25,0.5,0.75,1])
+    i.set_xlim(0,1)
+    i.set_ylim(0, 570)
+    
+plt.savefig(targetfolder+'/'+curve+'_param_sensitivity.png', dpi=200)
+plt.savefig(targetfolder+'/'+curve+'_param_sensitivity.pdf')
+
+
+# Consider the effect of these uncertainties all together.
+
+# In[ ]:
+
+
+combined = pd.DataFrame(columns=HP_mantle.columns, index=HP_mantle.index)
+for n in combined.columns:
+    combined[n] = fast_evolve_singlemodel_twobeta(b0=b, b1=b, chgt=5.0, 
+                 Tp=Tps[n], Ea=pars['Ea'].dist[n], Qt=Qms_from_Ht[n], HP=HP_mantle[n])
+scores = Z_scores(combined)
+odds = scores.apply(stats.norm.pdf)/(stats.norm.pdf(0))
+odds.columns = odds.columns+' odds'
+ensemble_statistics['All'] = deepcopy(pd.concat([scores, odds], axis=1))
+
+
+# In[ ]:
+
+
+fig, ax = plt.subplots(2,1, tight_layout=True, figsize=(3.5,6), sharex='none', sharey='none')
+plot_percentiles_over_time(df=combined, ax=ax[0], c=c[curve], name='All', both=True)
+plot_gaussian_target(ax[0])
+ensemble_statistics['All']['RMSE odds'].plot.hist(ax=ax[1], ec='w', xlim=(0,1), color=c[curve])
+ax[1].set_xlabel('Odds Ratio')
+ax[0].set_xlabel('Time (Ga)')
+ax[0].set_ylabel(r'Mantle T$_p$')
+
+plt.savefig(targetfolder+'/'+curve+'_param_sensitivity_ALL.png', dpi=200)
+plt.savefig(targetfolder+'/'+curve+'_param_sensitivity_ALL.pdf')
+
+if toprint['trajectories']: df.to_csv(targetfolder+'/trajectories_'+curve+'_all_'+str(b)+'.csv')
+if toprint['statistics']: df.to_csv(targetfolder+'/statistics_'+curve+'_all_'+str(b)+'.csv')
+
+try: [print(i) for i in os.listdir(targetfolder) if '.csv' in i]
+except: pass
+
+
+# Finally, consider role of changing beta in mean distribution.
+
+# In[ ]:
+
+
+Ea = pars['Ea'].mu
+Qt = pars['Qtot'].mu-HPhistory.crust.iloc[0]
+HP = HPhistory[curve]
+chgts = [0.5, 0.9, 1.3, 1.7]
+b0s = np.arange(-0.15, 0.3+tol, 0.01)
 n=0
-c='b'
-Zs = {}
-boxno = 'ABCD'
-for name, s in summary_stats.items():
-    if n==0: 
-        ylabel=r'Mantle $T_p$ (K)'
-    else: 
-        ylabel=None
-        ax[0][n].set_yticklabels([])
-    ax[0][n].fill_between(y1=s[s.columns[0]], y2=s[s.columns[-1]], x=s.index, ec='b', color=c, alpha=a)
-    ax[0][n].fill_between(y1=s[s.columns[1]], y2=s[s.columns[-2]], x=s.index, ec='b', color=c, alpha=a)
-    s[s.columns[2]].plot(c=c, label=None, ax=ax[0][n], lw=1, xticks=[0,1,2,3,4],
-                         xlabel='Time (Ga)', ylabel=ylabel)
-    ax[0][n].text(s=boxno[n], y=2040, x=0.2)
-    #ax[0][n].xaxis.tick_top()
-    ax[0][n].xaxis.set_label_position('bottom')
-    plot_gaussian_target(ax[0][n])
-    n=n+1
-
-n=0
-boxno='EFGH'
-for i, thing in scenarios.items():
-    if n==0:
-        ylabel='Kernel Density'
-    else: 
-        ylabel=None
-        ax[1][n].set_yticklabels([])
-    Zs[i] = dict()
-    str_i = r'$'+i[0]+'_{'+i[1:]+'}$'
-    for curve, df in thing.items():
-        Zs[i][curve] = Z_scores(df)
-        if curve==growthcurve:
-            Zs[i][curve]['RMSE'].plot.kde(ax=ax[1][n], xlim=(0,3), ylim=(0,5), label=i+' '+curve, c=c)
-            ax[1][n].set_xlabel('Z-score')
-            ax[1][n].set_ylabel(ylabel)
-            #ax[n].text(s=str_i, x=2.3, y=-1.75) #.25)
-            ax[1][n].text(s=boxno[n], x=0.15, y=3.2)
+entries = {}
+for b0 in b0s:
+    Tp = estimate_start_Tp(b0)
+    for b1 in b0s:
+        for chgt in chgts:
+            entry[n] = pd.Series({'b0':b0, 'b1':b1, 'chgt':chgt})
+            trajec = pd.DataFrame(fast_evolve_singlemodel_twobeta(b0=b0, b1=b1, chgt=chgt, 
+                 Tp=Tp, Ea=Ea, Qt=Qt, HP=HP), index=HP.index)
+            scores = Z_scores(trajec)
+            odds = scores.apply(stats.norm.pdf)/(stats.norm.pdf(0))
+            odds.columns = odds.columns+' odds'
+            statistics = (pd.concat([scores.iloc[0], odds.iloc[0], entry[n]], axis=0))
+            entries[n] = statistics
             n=n+1
-#plt.legend(loc='right', bbox_to_anchor=(1.9,0.5))
-plt.subplots_adjust(wspace=0.0, hspace=0.0)
-plt.tight_layout()
-plt.savefig(targetfolder+'/'+growthcurve+'scenarios_test_scores_COMBINED_RMSE_Ea_Qtot_Tp_Ht.pdf')
-        #k.loc[k.index[0::5]].to_csv('OUTPUT/'+curve+'_'+i+'.csv')
+        
+entries = pd.DataFrame(entries).T
 
-
-# #### Same plots, with X-axis labels removed
 
 # In[ ]:
 
 
-nxn = 2.1
-c='b'
-fig, ax = plt.subplots(2, npanels, figsize=(nxn*0.9*npanels, 2*nxn))
+timegroups = entries.groupby(by='chgt')
+fig, ax = plt.subplots(1, len(timegroups), gridspec_kw={'wspace': 0},
+                       figsize=(2*len(timegroups),2), sharey=True)
 n=0
-boxno = 'ABCD'
-for name, s in summary_stats.items():
-    if n==0: 
-        ylabel=r'Mantle $T_p$ (K)'
-    else: 
-        ylabel=None
-        ax[0][n].set_yticklabels([])
-    ax[0][n].fill_between(y1=s[s.columns[0]], y2=s[s.columns[-1]], x=s.index, ec=c, color=c, alpha=a)
-    ax[0][n].fill_between(y1=s[s.columns[1]], y2=s[s.columns[-2]], x=s.index, ec=c, color=c, alpha=a)
-    s[s.columns[2]].plot(c=c, label=None, ax=ax[0][n], lw=1, xticks=[0,1,2,3,4],
-                         xlabel=None, ylabel=ylabel)
-    ax[0][n].text(s=boxno[n], y=2040, x=0.2)
-    ax[0][n].xaxis.set_label_position('bottom')
-    plot_gaussian_target(ax[0][n])
+b0_labels = np.round(b0s,3)
+ax[0].set_ylabel(r'$\beta_{past}$')
+for chgt, group in timegroups:
+    result = group.pivot(index='b0', columns='b1', values='RMSE odds').T.values
+    ax[n].pcolormesh(result, cmap='gist_stern_r', vmin=0, vmax=1)
+    ax[n].set_aspect('equal'), 
+    ax[n].set_xticks([]), ax[n].set_yticks([])
+    ax[n].set_title(str(chgt)+'Ga')
+    ax[n].set_xlabel(r'$\beta_{present}$')
     n=n+1
-
-n=0
-boxno='EFGH'
-for i, thing in scenarios.items():
-    if n==0:
-        ylabel='Kernel Density'
-    else: 
-        ylabel=None
-        ax[1][n].set_yticklabels([])
-    Zs[i] = dict()
-    str_i = r'$'+i[0]+'_{'+i[1:]+'}$'
-    for curve, df in thing.items():
-        Zs[i][curve] = Z_scores(df)
-        if curve=='C03':
-            Zs[i][curve]['RMSE'].plot.kde(ax=ax[1][n], xlim=(0,3), ylim=(0,5), label=i+' '+curve, c=c)
-            ax[1][n].set_ylabel(ylabel)
-            ax[1][n].text(s=boxno[n], x=0.15, y=3.2)
-            n=n+1
-plt.subplots_adjust(wspace=0.0, hspace=0.0)
-plt.tight_layout()
-plt.savefig(targetfolder+'/'+growthcurve+'_scenarios_test_scores_noxlabels_COMBINED_RMSE_Ea_Qtot_Tp_Ht.pdf')
-        #k.loc[k.index[0::5]].to_csv('OUTPUT/'+curve+'_'+i+'.csv')
-
-
-# ### Explore role of variable $\beta$ given average parameters otherwise
-
-# In[ ]:
-
-
-tol=1.0e-15
-betas = np.round(np.arange(-0.15, 0.3+tol, 0.01), 2)
-betas = ([[i, j] for i in betas for j in betas])
-b0s, b1s = np.array(betas).transpose()
-Tps = estimate_start_Tp(b0s)
-chgts = np.round(np.arange(0.4, 2.0+tol, 0.2), 2)
-scenarios = pd.DataFrame({'b0': b0s, 'b1': b1s, 'Tp': Tps})
-results = dict(zip(chgts, len(chgts)*[None]))
-every = 5
-Ea, Qt = pars['Ea'].mu, pars['Qtot'].mu - HPE_budgets1[4].iat[0,0]
-crustfrac = GrowthCurves[growthcurve]
-HP = (HPE_budgets1[3] - (HPE_budgets1[4].mul(crustfrac, axis=0)).dropna()).T.drop_duplicates().T[0]
-summary = dict()
-for chgt in results.keys():
-    results[chgt] = dict()
-    for n,p in scenarios.T.items():
-        results[chgt][n] = fast_evolve_singlemodel_twobeta(b0=p.b0, b1=p.b1, chgt=chgt, 
-                            Tp=p.Tp, Ea=Ea, Qt=Qt, HP=HP, every=every)
-    results[chgt] = pd.DataFrame(results[chgt])
-    interp = interpolate_temps_at(df=results[chgt])
-    Zs = Z_score_from_interpolation(interp)
-    summary[chgt] = pd.concat([scenarios, interp, Zs], axis=1)
-    summary[chgt] = summary[chgt].replace(np.nan, np.inf)
-    summary[chgt].to_csv(targetfolder+'/'+str(chgt)+growthcurve+'b0b1.csv')
-
-
-# ### Plot these cases' fit with respect to Abbott et al 1994
-
-# In[ ]:
-
-
-subplotno = [[0,0],[0,1],#[0,2],
-             [1,0],[1,1]]#,#[1,2],
-             #[2,0],[2,1],[2,2]]
-n=0
-panels='ABCDEFGHI'
-ticks = np.arange(-0.15, 0.3+tol, 0.05)
-ticklabels = pd.Series(ticks).round(2).astype(str)
-fig, ax = plt.subplots(2,2, sharex=False, sharey=False, figsize=(3,3))
-for i in summary.keys():
-    if i not in [0.4, 0.8, 1.2, 1.6]:
-        continue
-    else:
-        data = summary[i]
-        pivoted = pd.pivot_table(data, values='Z_{RMSE}', index='b0', columns='b1', fill_value=None, dropna=False).T
-        pivoted = pivoted.mask(pivoted>100, other=100, inplace=False)
-        panel = ax[subplotno[n][0]][subplotno[n][1]]
-        im = panel.pcolormesh(pivoted.values, snap=True, vmin=0, vmax=4, cmap='gist_stern', shading='flat')
-        panel.set_aspect('equal')
-        if subplotno[n][0]==0: panel.set_xticks([])
-        else: 
-            panel.set_xticks(np.linspace(0,len(pivoted.index), 10))
-            panel.set_xticklabels(ticklabels, rotation=90)
-        if subplotno[n][1]==1: panel.set_yticks([])
-        else:
-            panel.set_yticks(np.linspace(0,len(pivoted.index), 10))
-            panel.set_yticklabels(ticklabels)
-        panel.text(x=len(pivoted.columns)*0.85, y=len(pivoted.columns)*0.85, s=panels[n]) #+' (t='+str(i)+')')
-        panel.text(x=len(pivoted.columns)*0.45, y=len(pivoted.columns)*0.08, s=r'$t_{chg}$='+str(i))
-        n=n+1
-plt.tight_layout()
-plt.subplots_adjust(wspace=0.15, hspace=0.15)
-cb_ax = fig.add_axes([1.0, 0.05, 0.05, 0.9])
-cbar = fig.colorbar(im, cax=cb_ax)
-
-plt.savefig(targetfolder+'/'+growthcurve+'_stats.pdf')
-
-
-# ### How does this map to odds ratio WRT ideal case?
-
-# In[ ]:
-
-
-subplotno = [[0,0],[0,1],#[0,2],
-             [1,0],[1,1]]#,#[1,2],
-             #[2,0],[2,1],[2,2]]
-n=0
-panels='ABCDEFGHI'
-ticks = np.arange(-0.15, 0.3+tol, 0.05)
-ticklabels = pd.Series(ticks).round(2).astype(str)
-fig, ax = plt.subplots(2,2, sharex=False, sharey=False, figsize=(3,3))
-for i in summary.keys():
-    if i not in [0.4, 0.8, 1.2, 1.6]:
-        continue
-    else:
-        data = summary[i]
-        pivoted = pd.pivot_table(data, values='Z_{RMSE}', index='b0', columns='b1', fill_value=None, dropna=False).T
-        pivoted = pivoted.mask(pivoted>100, other=100, inplace=False)
-        odds = stats.norm.pdf(pivoted.values)/stats.norm.pdf(0)
-        odds = pd.DataFrame(odds, columns=pivoted.index, index=pivoted.columns)
-        panel = ax[subplotno[n][0]][subplotno[n][1]]
-        im = panel.pcolormesh(odds.values, snap=True, vmin=0, vmax=1, cmap='gist_stern_r', shading='flat')
-        panel.set_aspect('equal')
-        if subplotno[n][0]==0: panel.set_xticks([])
-        else: 
-            panel.set_xticks(np.linspace(0,len(pivoted.index), 10))
-            panel.set_xticklabels(ticklabels, rotation=90)
-        if subplotno[n][1]==1: panel.set_yticks([])
-        else:
-            panel.set_yticks(np.linspace(0,len(pivoted.index), 10))
-            panel.set_yticklabels(ticklabels)
-        panel.text(x=len(pivoted.columns)*0.85, y=len(pivoted.columns)*0.85, s=panels[n]) #+' (t='+str(i)+')')
-        panel.text(x=len(pivoted.columns)*0.45, y=len(pivoted.columns)*0.08, s=r'$t_{chg}$='+str(i))
-        n=n+1
-plt.tight_layout()
-plt.subplots_adjust(wspace=0.15, hspace=0.15)
-cb_ax = fig.add_axes([1.0, 0.05, 0.05, 0.9])
-cbar = fig.colorbar(im, cax=cb_ax)
-plt.savefig(targetfolder+'/'+growthcurve+'_odds_stats.pdf')
+for ax in fig.get_axes(): 
+    #ax.xlabel(r'$\beta_present')
+    ax.label_outer()
+entries.to_csv(targetfolder+'/Grid_b0b1chgt'+curve+'.csv')
+plt.savefig(targetfolder+'/Grid_b0b1chgt'+curve+'.pdf')
+plt.savefig(targetfolder+'/Grid_b0b1chgt'+curve+'.png', dpi=200)
 
