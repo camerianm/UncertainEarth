@@ -240,7 +240,7 @@ for b0 in b0s:
             scores = Z_scores(trajec)
             odds = scores.apply(stats.norm.pdf)/(stats.norm.pdf(0))
             odds.columns = odds.columns+' odds'
-            statistics = (pd.concat([scores.iloc[0], odds.iloc[0], entry[n]], axis=0))
+            statistics = (pd.concat([scores.iloc[0], odds.iloc[0], entries[n]], axis=0))
             entries[n] = statistics
             n=n+1
         
