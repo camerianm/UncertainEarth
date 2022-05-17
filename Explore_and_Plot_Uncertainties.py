@@ -232,7 +232,7 @@ for b0 in b0s:
     Tp = estimate_start_Tp(b0)
     for b1 in b0s:
         for chgt in chgts:
-            entry[n] = pd.Series({'b0':b0, 'b1':b1, 'chgt':chgt})
+            entries[n] = pd.Series({'b0':b0, 'b1':b1, 'chgt':chgt})
             trajec = pd.DataFrame(fast_evolve_singlemodel_twobeta(b0=b0, b1=b1, chgt=chgt, 
                  Tp=Tp, Ea=Ea, Qt=Qt, HP=HP), index=HP.index)
             scores = Z_scores(trajec)
