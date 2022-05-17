@@ -19,6 +19,8 @@ import numpy as np
 from copy import deepcopy
 plt.rcParams['font.size'] = 10.0
 plt.rcParams['font.sans-serif'] = 'Arial'
+plt.rcParams["savefig.facecolor"] = 'w'
+plt.rcParams["savefig.edgecolor"] = 'w'
 tol = 1.0e-15
 c = {'RK18': 'r', 'C03': 'b'}
 
