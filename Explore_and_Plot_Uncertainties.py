@@ -5,6 +5,8 @@
 
 # In[ ]:
 
+# Where should outputs go?
+targetfolder = 'OUTPUT/0515'
 
 import os
 if not os.path.exists(targetfolder): os.mkdir(targetfolder)
@@ -26,12 +28,10 @@ c = {'RK18': 'r', 'C03': 'b'}
 # In[ ]:
 
 
-# Where should outputs go?
-targetfolder = 'OUTPUT/0515'
 # How many samples in any given random sample?
 nruns = 1000
 # Which crustal growth model to start with?
-curve = 'RK18'
+curve = 'C03'
 # How far back in time to run the model, in Ga?
 tmax = 4.0
 # With what timestep resolution, in Ga? (0.005 fast; 0.001 OK)
