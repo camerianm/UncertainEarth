@@ -6,7 +6,7 @@
 # In[ ]:
 
 # Where should outputs go?
-targetfolder = 'OUTPUT/0515'
+targetfolder = 'OUTPUT/0521'
 
 import os
 if not os.path.exists(targetfolder): os.mkdir(targetfolder)
@@ -31,7 +31,7 @@ c = {'RK18': 'r', 'C03': 'b'}
 
 
 # How many samples in any given random sample?
-nruns = 1000
+nruns = 100
 # Which crustal growth model to start with?
 curve = 'C03'
 # How far back in time to run the model, in Ga?
@@ -39,7 +39,7 @@ tmax = 4.0
 # With what timestep resolution, in Ga? (0.005 fast; 0.001 OK)
 timestep = 0.005
 # What raw/processed output to save?
-toprint = {'trajectories': False, 'statistics': True}
+toprint = {'trajectories': True, 'statistics': True}
 
 
 # Import files from which to interpolate model parameters.
@@ -94,9 +94,7 @@ del odds
 if toprint['trajectories']:
     curves[curve].to_csv(targetfolder+'/beta_mean_trajectories_'+curve+'.csv')
 if toprint['statistics']: 
-    curves[curve].to_csv(targetfolder+'/beta_mean_statistics_'+curve+'.csv')
-try: [print(i) for i in os.listdir(targetfolder) if '.csv' in i]
-except: pass
+    statistics[curve].to_csv(targetfolder+'/beta_mean_statistics_'+curve+'.csv')
 
 
 # Now, consider uncertainties in each model parameter, using that ideal beta.
@@ -142,7 +140,7 @@ for param, df in ensembles.items():
 
 for param, df in ensembles.items():
     if toprint['trajectories']: df.to_csv(targetfolder+'/trajectories_'+curve+'_'+param+'_'+str(b)+'.csv')
-    if toprint['statistics']: df.to_csv(targetfolder+'/statistics_'+curve+'_'+param+'_'+str(b)+'.csv')
+    if toprint['statistics']: ensemble_statistics[param].to_csv(targetfolder+'/statistics_'+curve+'_'+param+'_'+str(b)+'.csv')
 
 try: [print(i) for i in os.listdir(targetfolder) if '.csv' in i]
 except: pass
@@ -211,11 +209,10 @@ ax[0].set_ylabel(r'Mantle T$_p$')
 plt.savefig(targetfolder+'/'+curve+'_param_sensitivity_ALL.png', dpi=200)
 plt.savefig(targetfolder+'/'+curve+'_param_sensitivity_ALL.pdf')
 
-if toprint['trajectories']: df.to_csv(targetfolder+'/trajectories_'+curve+'_all_'+str(b)+'.csv')
-if toprint['statistics']: df.to_csv(targetfolder+'/statistics_'+curve+'_all_'+str(b)+'.csv')
+if toprint['trajectories']: combined.to_csv(targetfolder+'/trajectories_'+curve+'_all_'+str(b)+'.csv')
+if toprint['statistics']: ensemble_statistics['All'].to_csv(targetfolder+'/statistics_'+curve+'_all_'+str(b)+'.csv')
 
-try: [print(i) for i in os.listdir(targetfolder) if '.csv' in i]
-except: pass
+
 
 
 # Finally, consider role of changing beta in mean distribution.
